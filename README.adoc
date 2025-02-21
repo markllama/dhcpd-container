@@ -1,0 +1,88 @@
+// Documenting a container image to run ISC DHCP
+//
+//
+:toc:
+:toc-placement!:
+=  dhcpd-container
+
+The `dhcp-container` project goal is to create a containerized version
+of the ISC DHCP service suitable for use on container servers like
+Fedora CoreOS or any system capable of running Podman Quadlet services.
+
+toc::[]
+
+== Overview
+
+This includes two different implementations.  The first is built on a
+Fedora base image and uses the standard package management techniques
+to add the DHCP service binaries. This is a testbed to determine the
+additional configuration and volume parameters needed to supply the
+DHCP daemon.
+
+The second variation is a minimalized image, containing only files
+required for the `dhcpd` binary to operate within the container.
+
+This minimization is achieved by selecting the required binaries and
+then examining them for shared library bindings. The packages
+containing these libraries are located and unpacked, and the required
+files copied into the container tree with the binary. The final result
+is a container image containing no unneeded or unused files.
+
+The the build process is created and tested on Fedora CoreOS x86_64
+and aarch64 systems and produces a working container for each
+architecture. The build process should port easily to other systems
+that support `podman` and `buildah`. The resulting container image
+should run on any system using a OCI compliant container runtime.
+
+== Container Creation - Buildah
+
+https://buildah.io[`buildah`] is an ideal tool for building very
+finely crafted container images. Buildah *can* make use of
+conventional Dockerfiles with base images that are essentially an OS
+container with software installer tools and shells and other support
+files. Buildah is capable of creating very light-weight containers,
+with as little as a single binary and no base image. Buildah also
+gives fine control of the container image layering, eliminating the
+need for conventions like package installer cache cleanup steps after
+each package installation step. With Buildah you can specify precisely
+what goes into each layer of each image.
+
+== OS Based Image
+
+
+== Scratch Image
+
+== Future
+
+ISC DHCPD discontinued support of the last release, version 4.4 at the
+end of 2022.  https://www.isc.org/dhcphistory/[ISC DHCP 1.0 was
+released in June 1998] and it has been mantained and extended
+continuously since then. At that time it was still common for
+developers to create custom configuration syntax and parsers merely
+because there was no agreed-upon standard for structured data. The
+system data was stored in memory or in local files for
+persistance. Database hooks were added over time as ad-hoc updates.
+
+In ISC has re-implemented modern DHCP services in the
+https://www.isc.org/kea/[Kea Project]. Kea replaces the archaic
+configuration format with a standard JSON format and schema. It
+includes alternate database back ends as a standard feature. Kea
+implements a well defined REST api for integrated management and
+operation.
+
+== References
+
+* https://www.isc.org/dhcp/[ISC DHCP] +
+  ISC DHCP - (Deprecated 2022)
+
+* https://www.isc.org/kea/[ISC KEA] +
+  ISC replacement DHCP server
+
+* https://www.mozilla.org/en-US/MPL/2.0/[Mozilla Public License V2.0] +
+  The standard license for ISC software and derivations
+
+* https://podman.io[Podman] +
+  Podman software container management system
+
+* https://opencontainers.org/[Open Container Initiative] +
+  The standards body that defines containerized software compliance requirements.
