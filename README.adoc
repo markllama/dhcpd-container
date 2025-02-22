@@ -49,8 +49,28 @@ what goes into each layer of each image.
 
 == OS Based Image
 
+The easy step is to create an image based on a well-known distribution
+base image. Then the process is just to install the distro
+`dhcp-server` package, open volumes and ports and define the startup
+command. If the resulting instance is well-behaved, it can be used as
+the image for a *quadlet*, a systemd service run from a
+container. This is the conventional service container image creation
+method. At the end, the container definition will contain all of the
+elements needed to run the service.
 
 == Scratch Image
+
+At this point we have an image that runs the service as desired. What
+remains is to reduce the size of the image until it contains only
+files that are required for operation. The obvious things are the
+files contained in the packages installed over the base image, but the
+base image usually provides support components like standard shared
+libraries. While it might be possible to weed out the unneeded files,
+there are well defined ways to determine exactly which files are
+required. With those techniques it is possible to start at the
+critical binaries, to interrogate them for their requirements and to
+work your way up the chain until the service works and every file can
+be confirmed to be critical to operation.
 
 == Future
 
