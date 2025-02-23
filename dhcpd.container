@@ -1,0 +1,33 @@
+[Unit]
+Description=ISC DCHP daemon Service Container
+After=network-online.target
+
+[Container]
+Image=quay.io/markllama/dhcp-fedora:latest
+
+# Open listening ports
+# bootps
+PublishPort=67:67/udp
+PublishPort=67:67/tcp
+
+# bootpc
+PublishPort=68:68/udp
+PublishPort=68:68/tcp
+
+# OMAPI
+PublishPort=7911
+
+# Mount the dhcp config dir into the container workingdir
+Volume=/etc/dhcp/dhcpd.conf:/etc/dhcp/dhcpd.conf
+Volume=/var/lib/dhcpd/:/var/lib/dhcpd/
+
+[Install]
+# Enable in multi-user boot
+WantedBy=multi-user.target default.target
+
+#  podman run --detach --name dhcpd \
+#    --privileged  \
+#    --network host \
+#    --volume /opt/dhcpd/etc:/etc/dhcp:rw,Z \
+#    --volume /opt/dhcpd/var:/var/lib/dhcpd:rw,Z \
+#    quay.io/markllama/dhcpd-fedora

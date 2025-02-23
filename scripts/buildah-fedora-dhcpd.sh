@@ -25,7 +25,7 @@ function main() {
     # open ports for listening
     buildah config --port 68/udp --port 69/udp ${CONTAINER}
 
-    buildah config --cmd "/usr/sbin/dhcpd -d -cf /etc/dhcp/dhcpd.conf -user dhcpd -group dhcpd --no-pid" $CONTAINER
+    buildah config --cmd "/usr/sbin/dhcpd -d -cf /etc/dhcp/dhcpd.conf --no-pid" $CONTAINER
 
     # Save the container to an image
     buildah commit --squash $CONTAINER dhcpd-fedora
