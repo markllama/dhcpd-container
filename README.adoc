@@ -34,6 +34,19 @@ architecture. The build process should port easily to other systems
 that support `podman` and `buildah`. The resulting container image
 should run on any system using a OCI compliant container runtime.
 
+== Usage
+
+On a DHCP server host, all of the active interfaces must be configured
+with a static IP address. 
+
+=== Configuration Files
+
+* `/etc/dhcp/dhcpd.conf`
+* `/var/lib/dhcpd/dhcpd.leases`
+
+=== Container Unit File
+
+
 == Container Creation - Buildah
 
 https://buildah.io[`buildah`] is an ideal tool for building very
