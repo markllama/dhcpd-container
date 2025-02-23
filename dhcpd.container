@@ -28,6 +28,6 @@ WantedBy=multi-user.target default.target
 #  podman run --detach --name dhcpd \
 #    --privileged  \
 #    --network host \
-#    --volume /opt/dhcpd/etc:/etc/dhcp:rw,Z \
-#    --volume /opt/dhcpd/var:/var/lib/dhcpd:rw,Z \
+#    --volume /etc/dhcp/dhcpd.conf:/etc/dhcp/dhcpd.conf:rw,Z \
+#    --volume /var/lib/dhcpd/dhcp.leases:/var/lib/dhcpd/dhcp.leases:rw,Z \
 #    quay.io/markllama/dhcpd-fedora

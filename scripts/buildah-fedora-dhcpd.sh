@@ -27,7 +27,7 @@ function main() {
     buildah config --port 68/udp --port 69/udp ${CONTAINER}
 
     # Define the startup command
-    buildah config --cmd "/usr/sbin/dhcpd -d -cf /etc/dhcp/dhcpd.conf --no-pid" $CONTAINER
+    buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $CONTAINER
 
     # Save the container to an image
     buildah commit --squash $CONTAINER dhcpd-fedora
