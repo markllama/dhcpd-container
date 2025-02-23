@@ -3,7 +3,7 @@ Description=ISC DCHP daemon Service Container
 After=network-online.target
 
 [Container]
-Image=quay.io/markllama/dhcp-fedora:latest
+Image=quay.io/markllama/dhcpd-fedora:latest
 
 # Open listening ports
 # bootps
