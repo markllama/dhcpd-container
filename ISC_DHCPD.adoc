@@ -70,10 +70,24 @@ commands using the OMAPI protocol on port 7911/TCP . The DHCP server can be
 configured to use LDAP for a backing database on port 389/TCP or
 636/TCP. None of these are addressed here.
 
+== Summary
+
+The interface for the ISC DHCP service container requires mapping of
+two files and two UDP ports:
+
+* File: `dhcpd.conf` +
+  DHCP service configuration
+* File: `dhcp.leases` +
+  DHCP service state - Lease files
+* Port: 67/UDP - bootps +
+  DHCP Queries
+* Port: 68/UDP - bootpc +
+  DHCP Responses
+
 == References
 
 * https://www.isc.org/dhcp/[ISC `dhcpd` DHCP Server]
 * https://kb.isc.org/docs/isc-dhcp-44-manual-pages-dhcpd[`dhcpd` man page]
 * https://www.isc.org/kea/[ISC Kea DHCP Server]
-
-* RFC
+* https://www.rfc-editor.org/rfc/rfc951[RFC 951] Bootstrap Protocol (BOOTPS)
+* https://www.rfc-editor.org/rfc/rfc2132[RFC 2132] DHCP Options and BOOTP Vendor Extensions
