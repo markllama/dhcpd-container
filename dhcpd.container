@@ -19,7 +19,7 @@ PublishPort=7911
 
 # Mount the dhcp config dir into the container workingdir
 Volume=/etc/dhcp/dhcpd.conf:/etc/dhcp/dhcpd.conf
-Volume=/var/lib/dhcpd/:/var/lib/dhcpd/
+Volume=/var/lib/dhcpd/dhcp.leases:/var/lib/dhcpd/dhcp.leases
 
 [Install]
 # Enable in multi-user boot
