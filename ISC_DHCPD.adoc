@@ -13,6 +13,8 @@ container image.
 NOTE: ISC DHCP server is end-of-life and deprecated in favor of
 https://www.isc.org/kea/[ISC Kea]. Containerizing ISC Kea may be a future project.
 
+toc::[]
+
 == Containerization Concepts
 
 The metaphor of the Software Container creates a clean boundary
@@ -39,19 +41,39 @@ startup. Container creation and deployment allow the developer and the
 user both to place files in arbitrary locations without influencing
 the other.
 
-toc::[]
-
 == Configuration and Operation
 
-The ISC DHCP server reads its configuration from a single file,
-conventionally located at `/etc/dhcp/dhcpd.conf` The 
+Network infrastructure services tend to be very simple in
+configuration and operation. They do one thing very reliably because
+if they didn't "The Internet Stops Working".
 
+The ISC DHCP server reads its configuration from a single file,
+conventionally located at `/etc/dhcp/dhcpd.conf` The default location
+can be overridden on the CLI using the `-cf <config file>` option.
+
+The server state is stored in a *lease file* that is stored by
+convention in `/var/lib/dhcpd/dhcpd.leases`. This too can be modified
+on the CLI with the `-lf <lease file>` option.
+
+Both of these files must be provided by the user when starting the
+container instance.
 
 == Communication
 
+The DHCP protocol is defined in a series of RFCs. DHCP requests arrive
+on UDP port 67 and responses are sent to UDP port 68. The two port
+system is an artifact of very early protocol designs. These are the
+minimal ports needed for service operation.
+
+In advanced configurations the DHCP server can listen for control
+commands using the OMAPI protocol on port 7911/TCP . The DHCP server can be
+configured to use LDAP for a backing database on port 389/TCP or
+636/TCP. None of these are addressed here.
 
 == References
 
 * https://www.isc.org/dhcp/[ISC `dhcpd` DHCP Server]
 * https://kb.isc.org/docs/isc-dhcp-44-manual-pages-dhcpd[`dhcpd` man page]
 * https://www.isc.org/kea/[ISC Kea DHCP Server]
+
+* RFC
