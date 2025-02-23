@@ -37,7 +37,9 @@ should run on any system using a OCI compliant container runtime.
 == Usage
 
 On a DHCP server host, all of the active interfaces must be configured
-with a static IP address. 
+with a static IP address.
+
+The current container cannot serve IPv6 addresses
 
 === Configuration Files
 
