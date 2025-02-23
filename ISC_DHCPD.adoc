@@ -1,0 +1,57 @@
+// Documenting a container image to run ISC DHCP
+//
+//
+:toc:
+:toc-placement!:
+= ISC DHCP Server
+
+The https://www.isc.org/dhcp/[ISC DHCP] server is already packaged, so
+the contents are already well defined (if overstuffed). This document
+describes the interfaces that must be made explicit when creating a
+container image.
+
+NOTE: ISC DHCP server is end-of-life and deprecated in favor of
+https://www.isc.org/kea/[ISC Kea]. Containerizing ISC Kea may be a future project.
+
+== Containerization Concepts
+
+The metaphor of the Software Container creates a clean boundary
+between an application and the run-time environment where it
+lives. The most common image people have is a shipping container. A real
+commercial shipping container has a standard size and shape, defined
+to allow it to be lifted, stacked and secured on enormous ships, a
+rail flat-car or a flatbed tractor-trailer. A software container is a
+bit more squishy. Think of it more as almost infinitely stretchy
+trash bag.
+
+For users, the most important aspects of a container image are the
+holes you have to poke in the container to configure and communicate
+with it. When creating a conventional software package, the developer
+just creates a new file space and drops the binaries and default
+configuration into the filesystem. The user has to read the
+documentation to locate the knobs and hoses. Containers force the
+developer to make all these explicit.
+
+When defining file locations it is important to distinguish between
+file paths inside the container and outside. Most software allows
+files to be moved and their location specified on the CLI at
+startup. Container creation and deployment allow the developer and the
+user both to place files in arbitrary locations without influencing
+the other.
+
+toc::[]
+
+== Configuration and Operation
+
+The ISC DHCP server reads its configuration from a single file,
+conventionally located at `/etc/dhcp/dhcpd.conf` The 
+
+
+== Communication
+
+
+== References
+
+* https://www.isc.org/dhcp/[ISC `dhcpd` DHCP Server]
+* https://kb.isc.org/docs/isc-dhcp-44-manual-pages-dhcpd[`dhcpd` man page]
+* https://www.isc.org/kea/[ISC Kea DHCP Server]
