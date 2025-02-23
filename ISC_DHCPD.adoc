@@ -15,6 +15,7 @@ https://www.isc.org/kea/[ISC Kea]. Containerizing ISC Kea may be a future projec
 
 toc::[]
 
+
 == Containerization Concepts
 
 The metaphor of the Software Container creates a clean boundary
@@ -41,7 +42,9 @@ startup. Container creation and deployment allow the developer and the
 user both to place files in arbitrary locations without influencing
 the other.
 
-== Configuration and Operation
+== Interface
+
+=== Configuration and Operation
 
 Network infrastructure services tend to be very simple in
 configuration and operation. They do one thing very reliably because
@@ -58,7 +61,7 @@ on the CLI with the `-lf <lease file>` option.
 Both of these files must be provided by the user when starting the
 container instance.
 
-== Communication
+=== Communication
 
 The DHCP protocol is defined in a series of RFCs. DHCP requests arrive
 on UDP port 67 and responses are sent to UDP port 68. The two port
@@ -70,7 +73,7 @@ commands using the OMAPI protocol on port 7911/TCP . The DHCP server can be
 configured to use LDAP for a backing database on port 389/TCP or
 636/TCP. None of these are addressed here.
 
-== Summary
+=== Interface Summary
 
 The interface for the ISC DHCP service container requires mapping of
 two files and two UDP ports:
@@ -83,6 +86,16 @@ two files and two UDP ports:
   DHCP Queries
 * Port: 68/UDP - bootpc +
   DHCP Responses
+
+== Contents
+
+The simplest way to create a container service is to use a base image
+that provides traditional package management tools and then install
+the service package. This is a good way to get the service running
+quickly and prove the interface spec and implementation.
+
+For this example the base image is Fedora minimal. The DHCP software
+is added with the `dhcp-server` package.
 
 == References
 
