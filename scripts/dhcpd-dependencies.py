@@ -6,6 +6,7 @@ and shared libraries needed for each file.
 
 import argparse
 import distro
+import functools
 import os
 import re
 import subprocess
@@ -27,24 +28,9 @@ def parse_args():
     
     return parser.parse_args()
 
-#
-# Utility functions
-#
-def releasever():
-    response = subprocess.check_output(['dnf', '--dump-variables']).decode('utf-8').split("\n")
-
-    relver = { }
-    
-    for line in response:
-        m = re.match(r"^(\S+) = (\S+)", line)
-        if m is not None:
-            relver[m.group(1)] = m.group(2)
-
-    return relver
-#
-#
-#
-
+# --------------------------------------
+# YUM repo and RPM management functions
+# --------------------------------------
 def pull_packages(destdir, package):
     """
     Retrieve an RPM and the dependencies from the default repository
@@ -78,6 +64,43 @@ def unpack_package(package_file, destdir):
     unpack = subprocess.Popen(unpack_command.split(), stdin=convert.stdout)
     convert.wait()
 
+def find_lib_package(libname):
+
+    provides_command=f"dnf --quiet provides {libname}"
+
+    response = subprocess.check_output(provides_command.split()).decode('utf-8').split("\n")
+    packages = []
+    #
+    # <pkgname>    : <description>
+    # Repo         : <reponame>
+    # Matched From : blank
+    # Filename     : <filename>
+    # <blank>
+    pkgname = None
+    pkg = {}
+    for line in response:
+        match = re.match(r"^(\S+\s?\S+)\s+:\s+(.*)$", line)
+        if match != None:
+            # figure out which
+            (key, value) = match.groups(1)
+            key = key.lower()
+            if key in ['repo', 'filename']:
+                pkg[key] = value
+            elif key == 'matched from':
+                next
+            else:
+                pkg['name'] = key
+                pkg['description'] = value
+        else:
+            if len(pkg) != 0:
+                packages.append(pkg)
+                pkg = {}
+    
+    return packages
+
+# --------------------------------------------------
+# Executable file discovery and inspection functions
+# --------------------------------------------------
 def find_executable(root_dir):
     """
     Return a list of executable files in a file tree.
@@ -119,44 +142,10 @@ def resolve_shared_libraries(root_dir, exe_path):
 
     return libs
 
-def find_lib_package(libname):
-
-    provides_command=f"dnf --quiet provides {libname}"
-
-    response = subprocess.check_output(provides_command.split()).decode('utf-8').split("\n")
-    packages = []
-    #
-    # <pkgname>    : <description>
-    # Repo         : <reponame>
-    # Matched From : blank
-    # Filename     : <filename>
-    # <blank>
-    pkgname = None
-    pkg = {}
-    for line in response:
-        match = re.match(r"^(\S+\s?\S+)\s+:\s+(.*)$", line)
-        if match != None:
-            # figure out which
-            (key, value) = match.groups(1)
-            key = key.lower()
-            if key in ['repo', 'filename']:
-                pkg[key] = value
-            elif key == 'matched from':
-                next
-            else:
-                pkg['name'] = key
-                pkg['description'] = value
-        else:
-            if len(pkg) != 0:
-                packages.append(pkg)
-                pkg = {}
-    
-    return packages
-
 # ----------------------
 # Package name parsing and comparison
 # ----------------------
-rpm_re = re.compile(r'^(.*)-((\d+)\.(\d+)(\.(\d+))?-(\d+))\.(\S+)\.(\S+)$')
+rpm_re = re.compile(r'^(.*)[-:]((\d+)\.(\d+)(\.(\d+))?-(\d+))\.(\S+)\.(\S+)$')
     
 def parse_rpm_name(pkg):
     """
@@ -175,7 +164,7 @@ def parse_rpm_name(pkg):
         "version": match.group(2),
         "major": int(match.group(3)),
         "minor": int(match.group(4)),
-        "release": int(match.group(5)) if match.group(5) is not None else 0,
+        "release": int(match.group(6)) if match.group(5) is not None else 0,
         "build": int(match.group(7)),
         "distro": match.group(8),
         "arch": match.group(9)
@@ -216,7 +205,7 @@ def compare_rpm_name(name1, name2):
 # ===============================
 if __name__ == "__main__":
 
-    steps = ['pull', 'unpack', 'exec', 'libs', 'paths', 'pkgs']
+    steps = ['pull', 'unpack', 'exec', 'dlink', 'paths', 'pkgs', ]
         
     opts = parse_args()
     
@@ -271,3 +260,24 @@ if __name__ == "__main__":
     #
 
     print(yaml.dump(shared_libraries))
+
+    for exe_path in shared_libraries.keys():
+        print(f"- exe path: { exe_path }")
+        packages = set()
+        for lib_file_path in shared_libraries[exe_path]['packages'].keys():
+            print(f"  - { lib_file_path }", end="")
+            pkg_list = shared_libraries[exe_path]['packages'][lib_file_path]
+            # Remove duplicates with a set then convert back to list for sort
+            pkg_name_list = list(set([pkg['name'] for pkg in pkg_list]))
+            # print(f"    { pkg_name_list }")
+            pkg_name_list.sort(key=functools.cmp_to_key(compare_rpm_name), reverse=True)
+            #print(f"    sorted { pkg_name_list }")
+            pkg_name = parse_rpm_name(pkg_name_list[0])['name']
+
+            print(f"  {pkg_name}")
+            # remove duplicates with 
+            # get a sorted list of the package versions
+            packages.add(pkg_name)
+
+
+    print(sorted(list(packages)))
