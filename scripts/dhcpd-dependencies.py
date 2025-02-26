@@ -12,20 +12,37 @@ import re
 import subprocess
 import stat
 import sys
+import urllib.request
 import yaml
 
-package_dir = "./packages"
-package_name = "dhcp-server"
-
-unpack_dir = "./unpack"
+defaults = {
+    'package_name': "dhcp-server",
+    'package_dir':  "./packages",
+    'unpack_dir':   "./unpack"
+    
+}
 
 def parse_args():
 
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--verbose', '-v', type=bool, default=False)
+    # parser.add_argument('--check', '-v', type=bool, default=False)
+
+    # operational parameters
+    parser.add_argument('--package-dir', default=defaults['package_dir'])
+    parser.add_argument('--unpack-dir', default=defaults['unpack_dir'])
+    #parser.add_argument('--package-name')
+
+    # parser.add_arguments("--steps")
+    
+    # Operation Controls    
     parser.add_argument("--pull", type=bool, default=False)
     parser.add_argument("--unpack", type=bool, default=False)
-    
+
+    # Positional arguments
+    parser.add_argument("package", default=defaults['package_name'])
+
     return parser.parse_args()
 
 # --------------------------------------
@@ -42,7 +59,8 @@ def pull_packages(destdir, package):
     not os.path.isdir(destdir) and  os.mkdir(destdir)
 
     # download the package(s)
-    subprocess.run(rpm_cmd.split())
+    result = subprocess.run(rpm_cmd.split(), stdout=subprocess.PIPE)
+    
 
     packages = os.listdir(destdir)
 
@@ -200,6 +218,115 @@ def compare_rpm_name(name1, name2):
 
     raise ValueError("invalid package names")
 
+# ------------------------------------------------------------------------------
+# Package Management
+# ------------------------------------------------------------------------------
+class RPM(object):
+
+    def __init__(self, name):
+        self._name = name
+        self._url = None
+        self._filename = None
+        self._dependencies = []
+
+    @property
+    def url(self):
+        """
+        Get download URLs for the package and any dependencies
+        """
+        if self._url is None:
+            rpm_cmd = f"/usr/bin/dnf download --url --urlprotocol https { self._name }"
+            result = subprocess.run(rpm_cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self._url = result.stdout.decode('utf-8').split("\n")[0]
+            self._filename = self._url.split('/')[-1]
+            
+        return self._url
+
+    @property
+    def dependencies(self):
+        """
+        Get download URLs for the package and any dependencies
+        """
+        if self._dependencies:
+            return self._dependencies
+  
+        rpm_cmd = f"/usr/bin/dnf download --resolve --url --urlprotocol https { self._name }"
+        result = subprocess.run(rpm_cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        urls = result.stdout.decode('utf-8').split("\n")[:-1]
+        self._dependencies = []
+        for url in urls:
+            basename = url.split("/")[-1]
+            if basename != self._filename:
+                self._dependencies.append({"filename": basename, "url": url})
+        
+        return self._dependencies
+
+    def retrieve(self, destdir, dependencies=True):
+        """
+        Retrieve an RPM and the dependencies from the default repository
+        place the RPMs in the directory indicated.
+        """
+
+        url = self.url
+        path = os.path.join(destdir, self._filename)
+        os.path.exists(path) or urllib.request.urlretrieve(url, path)
+        
+        # download each of the packages if needed
+        if dependencies:
+            for dep in self.dependencies:
+                # get the basename of the URL
+                path = os.path.join(destdir, dep['filename'])
+                os.path.exists(path) or urllib.request.urlretrieve(dep['url'], path)
+
+# ------------------------------------------------------------------------------
+# Executable Binary record
+# ------------------------------------------------------------------------------
+class DynamicExecutable(object):
+
+    def __init__(self, path):
+        self._path = path
+        #self._name = basename[path]
+        self._name = None
+        self._package = None
+        self._dependancies = []
+        self._libraries = []
+
+    @classmethod
+    def find(root_dir):
+        """
+        Return a list of executable files in a file tree.
+        """
+        executables = []
+        for (dirpath, dirnames, filenames) in os.walk(root_dir):
+            for f in filenames:
+                path = os.path.join(dirpath, f)
+                fstat = os.lstat(path)
+                try:
+                    # check each file for permission 'x' in mode string
+                    # raises exception if no match
+                    stat.filemode(fstat.st_mode).index('x')
+
+                    # don't include symlinks
+                    stat.S_ISLNK(fstat.st_mode) or executables.append(path)
+                
+                except ValueError:
+                    # str.index throws ValueError if match is not found
+                    # meaning the file isn't executable
+                    next
+
+        # normalize to the OS path (remove the local root dir path
+        return [ path.replace(root_dir,'') for path in executables ]
+
+
+class DynamicLibrary(object):
+    
+    def __init__(self, name, path=None):
+        self._name = name
+        self._path = path
+        self._package = None
+        self._current = None
+
 # ===============================
 # MAIN
 # ===============================
@@ -208,35 +335,60 @@ if __name__ == "__main__":
     steps = ['pull', 'unpack', 'exec', 'dlink', 'paths', 'pkgs', ]
         
     opts = parse_args()
-    
+
+    pkg = RPM(opts.package)
+    pkg.retrieve(opts.package_dir)
+
+    sys.exit(1)
+
     # * pull
     # * unpack
     
     if opts.pull:
-        packages = pull_packages(package_dir, package_name)
+        packages = pull_packages(opts.package_dir, opts.package_name)
     else:
-        packages = os.listdir(package_dir)
+        packages = os.listdir(opts.package_dir)
 
     if opts.unpack:
         for package in packages:
-            unpack_package(os.path.join(package_dir, package), unpack_dir)
-    
-    executables = find_executable(unpack_dir)
+            unpack_package(os.path.join(opts.package_dir, opts.package_name), opts.unpack_dir)
+
+
+
+    # Get a list of binary executable files in the unpacked tree
+    executables = find_executable(opts.unpack_dir)
 
     # print(executables)
+
+    # executable
+    # {
+    #   'name': "",
+    #   'path': "",
+    #   'package': "",
+    #   'libraries': [
+    #      # Dynamic library entries
+    #      {
+    #        'filename': "",
+    #        'filepath': "",
+    #        'packname': "",
+    #        'currvers': ""
+    #      },...
+    #   ]
+    # }
 
     # Find the shared libraries required by the binary
     shared_libraries = {}
     for exe_name in executables:
         shared_libraries[exe_name] = {
-            'libfiles': resolve_shared_libraries(unpack_dir, exe_name),
-            'packages': {}
+            'libfiles': resolve_shared_libraries(opts.unpack_dir, exe_name),
+            'libpaths': {}
         }
 
     # Find the path of each shared library
     # print(yaml.dump(shared_libraries, indent=2))
 
     for exe in shared_libraries.keys():
+
         # Find the package that provides that file
         for lib in shared_libraries[exe]['libfiles']:
             try:
@@ -246,12 +398,12 @@ if __name__ == "__main__":
                 path = lib
                 pkg = find_lib_package(path)
 
-            shared_libraries[exe]['packages'][path] = pkg
+            shared_libraries[exe]['libpaths'][path] = pkg
 
-        for libfile in shared_libraries[exe]['packages'].keys():
+        for libfile in shared_libraries[exe]['libpaths'].keys():
             
             # now find the hightest version package
-            versions = [ x['name'] for x in shared_libraries[exe]['packages'][libfile] ]
+            versions = [ x['name'] for x in shared_libraries[exe]['libpaths'][libfile] ]
             versions.sort(reverse=True)
             #print(f"Library File: { libfile } from package {versions[0]}")
 
@@ -259,14 +411,14 @@ if __name__ == "__main__":
     # Now, for each executable, find the packages needed
     #
 
-    print(yaml.dump(shared_libraries))
+    #print(yaml.dump(shared_libraries))
 
     for exe_path in shared_libraries.keys():
         print(f"- exe path: { exe_path }")
         packages = set()
-        for lib_file_path in shared_libraries[exe_path]['packages'].keys():
+        for lib_file_path in shared_libraries[exe_path]['libpaths'].keys():
             print(f"  - { lib_file_path }", end="")
-            pkg_list = shared_libraries[exe_path]['packages'][lib_file_path]
+            pkg_list = shared_libraries[exe_path]['libpaths'][lib_file_path]
             # Remove duplicates with a set then convert back to list for sort
             pkg_name_list = list(set([pkg['name'] for pkg in pkg_list]))
             # print(f"    { pkg_name_list }")
