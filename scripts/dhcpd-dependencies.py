@@ -83,36 +83,14 @@ def find_lib_package(libname):
             if len(pkg) != 0:
                 packages.append(pkg)
                 pkg = {}
-    
+
+        packages.append(pkg)
+
     return packages
 
 # --------------------------------------------------
 # Executable file discovery and inspection functions
 # --------------------------------------------------
-def find_executable(root_dir):
-    """
-    Return a list of executable files in a file tree.
-    """
-    executables = []
-    for (dirpath, dirnames, filenames) in os.walk(root_dir):
-        for f in filenames:
-            path = os.path.join(dirpath, f)
-            fstat = os.lstat(path)
-            try:
-                # check each file for permission 'x' in mode string
-                # raises exception if no match
-                stat.filemode(fstat.st_mode).index('x')
-
-                # don't include symlinks
-                stat.S_ISLNK(fstat.st_mode) or executables.append(path)
-                
-            except ValueError:
-                # str.index throws ValueError if match is not found
-                # meaning the file isn't executable
-                next
-
-    # normalize to the OS path (remove the local root dir path
-    return [ path.replace(root_dir,'') for path in executables ]
 
 def resolve_shared_libraries(root_dir, exe_path):
     """
@@ -281,7 +259,7 @@ class DynamicExecutable(object):
         #self._name = basename[path]
         self._package = package
         self._dependancies = []
-        self._libraries = []
+        self._libraries = None
 
     @staticmethod
     def find(root_dir, package=None):
@@ -318,30 +296,89 @@ class DynamicExecutable(object):
 
         return execs
 
-    def dynamic_libraries(self, root_dir):
+    def libraries(self, root_dir=None):
         """
         Given the root of a tree containing a dynamically linked executable,
         And the normalized path of the executable file,
         Get the list of shared libraries.
         """
 
-        #dlink_command = f"ldd { root_dir }{ self._path }"
-        response = subprocess.check_output(['ldd', f"{ root_dir }/{self._package}{ self._path }"]).decode('utf-8').split("\n")
+        if self._libraries is None and root_dir is not None:
+            #dlink_root = os.path.join(root_dir, self._package, self._path)
+            dlink_root = f"{ root_dir }/{ self._package }{ self._path }"
+            response = subprocess.check_output(['ldd', dlink_root]).decode('utf-8').split("\n")
 
-        # remove leading tabs
-        lines = [line.strip().split() for line in response]
-        libs = [lib[2] for lib in lines if len(lib) > 2]
+            # remove leading tabs
+            lines = [line.strip().split() for line in response]
 
-        return libs
-
+            libpaths = [lib[2] for lib in lines if len(lib) > 2]
+            libraries = [DynamicLibrary(path.split('/')[-1], path=path) for path in libpaths]
+            self._libraries = libraries
+            
+        return self._libraries
 
 class DynamicLibrary(object):
     
-    def __init__(self, name, path=None, package=None):
+    def __init__(self, name, path=None):
         self._name = name
-        self._path = path
-        self._package = package
+        if path:
+            self._path = path if path.startswith("/usr") else "/usr" + path
+        else:
+            self._path = path
+        self._package = None
+        self._sources = None
         self._current = None
+
+
+    def package(self, path=None):
+        """
+        Determine what package(s) provide this library
+        """
+
+        if path is not None:
+            self._path = path
+
+        if self._package is not None:
+            return self._package
+        
+        provides_command=f"dnf --quiet provides {self._path}"
+        try: 
+            response = subprocess.check_output(provides_command.split()).decode('utf-8').split("\n")
+        except subprocess.CalledProcessError as e:
+            provides_command=f"dnf --quiet provides { self._path.replace('/usr', '') }"
+            response = subprocess.check_output(provides_command.split()).decode('utf-8').split("\n")
+        packages = []
+        pkgname = None
+        # The stdout contains a series of RPM records  like this
+        #
+        # <pkgname>    : <description>
+        # Repo         : <reponame>
+        # Matched From : blank
+        # Filename     : <filename>
+        # <blank>
+        pkg = {}
+        for line in response:
+            match = re.match(r"^(\S+\s?\S+)\s+:\s+(.*)$", line)
+            if match != None:
+                # figure out which
+                (key, value) = match.groups(1)
+                key = key.lower()
+                if key in ['repo', 'filename']:
+                    pkg[key] = value
+                elif key == 'matched from':
+                    next
+                else:
+                    pkg['name'] = key
+                    pkg['description'] = value
+            else:
+                if len(pkg) != 0:
+                    packages.append(pkg)
+                    pkg = {}
+
+        self._packages = packages
+
+        # Now find the most recent source and get the package name
+        return packages
 
 # ===============================
 # MAIN
@@ -360,8 +397,14 @@ if __name__ == "__main__":
     print(executables)
 
     for exe in executables:
-        print(exe.dynamic_libraries(opts.unpack_dir))
+        libraries = exe.libraries(opts.unpack_dir)
 
+        for lib in libraries:
+            print(f"finding package for library { lib._name }")
+            pkg = lib.package()
+            print(f"package: { pkg }")
+            
+    
     sys.exit(1)
 
     # * pull
