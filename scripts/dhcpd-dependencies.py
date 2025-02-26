@@ -17,8 +17,8 @@ import yaml
 
 defaults = {
     'package_name': "dhcp-server",
-    'package_dir':  "./packages",
-    'unpack_dir':   "./unpack"
+    'package_dir':  "./minimize/packages",
+    'unpack_dir':   "./minimize/unpack"
     
 }
 
@@ -56,7 +56,7 @@ def pull_packages(destdir, package):
     
     rpm_cmd = f"/usr/bin/dnf --quiet download --resolve --destdir { destdir } { package }"
     # Create the destination directory 
-    not os.path.isdir(destdir) and  os.mkdir(destdir)
+    not os.path.isdir(destdir) and  os.makedirs(destdir, exist_ok=True)
 
     # download the package(s)
     result = subprocess.run(rpm_cmd.split(), stdout=subprocess.PIPE)
@@ -75,7 +75,7 @@ def unpack_package(package_file, destdir):
     unpack_command = f"cpio -idmu --quiet --directory {destdir}"
 
     # Create the destination directory if needed
-    not os.path.isdir(destdir) and  os.mkdir(destdir)
+    not os.path.isdir(destdir) and  os.makedirs(destdir, exist_ok=True)
 
     # rpm2ostree | cpio - Yes Adam, yes.
     convert = subprocess.Popen(convert_command.split(), stdout = subprocess.PIPE)
@@ -268,6 +268,9 @@ class RPM(object):
         place the RPMs in the directory indicated.
         """
 
+        # Create the destination directory 
+        not os.path.isdir(destdir) and  os.makedirs(destdir, exist_ok=True)
+
         url = self.url
         path = os.path.join(destdir, self._filename)
         os.path.exists(path) or urllib.request.urlretrieve(url, path)
@@ -338,6 +341,8 @@ if __name__ == "__main__":
 
     pkg = RPM(opts.package)
     pkg.retrieve(opts.package_dir)
+    #pkg.retrieve(opts.package_dir, unpack=opts.unpack_dir)
+    #pkg.unpack(opts.package_dir, opts.unpack_dir)
 
     sys.exit(1)
 
