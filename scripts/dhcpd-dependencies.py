@@ -22,6 +22,9 @@ defaults = {
     
 }
 
+#
+# 
+#
 def parse_args():
 
     parser = argparse.ArgumentParser()
@@ -45,42 +48,9 @@ def parse_args():
 
     return parser.parse_args()
 
-# --------------------------------------
-# YUM repo and RPM management functions
-# --------------------------------------
-def pull_packages(destdir, package):
-    """
-    Retrieve an RPM and the dependencies from the default repository
-    place the RPMs in the directory indicated.
-    """
-    
-    rpm_cmd = f"/usr/bin/dnf --quiet download --resolve --destdir { destdir } { package }"
-    # Create the destination directory 
-    not os.path.isdir(destdir) and  os.makedirs(destdir, exist_ok=True)
-
-    # download the package(s)
-    result = subprocess.run(rpm_cmd.split(), stdout=subprocess.PIPE)
-    
-
-    packages = os.listdir(destdir)
-
-    return packages
-
-def unpack_package(package_file, destdir):
-    """
-    Unpack an RPM into a directory
-    """
-    
-    convert_command = f"rpm2cpio { package_file }"
-    unpack_command = f"cpio -idmu --quiet --directory {destdir}"
-
-    # Create the destination directory if needed
-    not os.path.isdir(destdir) and  os.makedirs(destdir, exist_ok=True)
-
-    # rpm2ostree | cpio - Yes Adam, yes.
-    convert = subprocess.Popen(convert_command.split(), stdout = subprocess.PIPE)
-    unpack = subprocess.Popen(unpack_command.split(), stdin=convert.stdout)
-    convert.wait()
+# ============================================================
+# Refactor these
+# ============================================================
 
 def find_lib_package(libname):
 
@@ -282,25 +252,43 @@ class RPM(object):
                 path = os.path.join(destdir, dep['filename'])
                 os.path.exists(path) or urllib.request.urlretrieve(dep['url'], path)
 
+    def unpack(self, package_dir, destroot):
+        """
+        Unpack an RPM into a directory
+        """
+
+        destdir = os.path.join(destroot, self._name)
+        
+        convert_command = f"rpm2cpio { os.path.join(package_dir, self._filename) }"
+        unpack_command = f"cpio -idmu --quiet --directory {destdir}"
+
+        # Create the destination directory if needed
+        not os.path.isdir(destdir) and  os.makedirs(destdir, exist_ok=True)
+
+        # rpm2ostree | cpio - Yes Adam, yes.
+        convert = subprocess.Popen(convert_command.split(), stdout = subprocess.PIPE)
+        unpack = subprocess.Popen(unpack_command.split(), stdin=convert.stdout)
+        convert.wait()
+
 # ------------------------------------------------------------------------------
 # Executable Binary record
 # ------------------------------------------------------------------------------
 class DynamicExecutable(object):
 
-    def __init__(self, path):
+    def __init__(self, name, path=None, package=None):
+        self._name = name
         self._path = path
         #self._name = basename[path]
-        self._name = None
-        self._package = None
+        self._package = package
         self._dependancies = []
         self._libraries = []
 
-    @classmethod
-    def find(root_dir):
+    @staticmethod
+    def find(root_dir, package=None):
         """
         Return a list of executable files in a file tree.
         """
-        executables = []
+        exec_paths = []
         for (dirpath, dirnames, filenames) in os.walk(root_dir):
             for f in filenames:
                 path = os.path.join(dirpath, f)
@@ -311,7 +299,7 @@ class DynamicExecutable(object):
                     stat.filemode(fstat.st_mode).index('x')
 
                     # don't include symlinks
-                    stat.S_ISLNK(fstat.st_mode) or executables.append(path)
+                    stat.S_ISLNK(fstat.st_mode) or exec_paths.append(path)
                 
                 except ValueError:
                     # str.index throws ValueError if match is not found
@@ -319,15 +307,40 @@ class DynamicExecutable(object):
                     next
 
         # normalize to the OS path (remove the local root dir path
-        return [ path.replace(root_dir,'') for path in executables ]
+        #return [ path.replace(root_dir,'') for path in executables ]
+        execs = []
+        for path in exec_paths:
+            # create a DynamicExecutable object for each path
+            dyn_exec = DynamicExecutable(path.split('/')[-1],
+                                         path=path.replace(root_dir, ''),
+                                         package=package)
+            execs.append(dyn_exec)
+
+        return execs
+
+    def dynamic_libraries(self, root_dir):
+        """
+        Given the root of a tree containing a dynamically linked executable,
+        And the normalized path of the executable file,
+        Get the list of shared libraries.
+        """
+
+        #dlink_command = f"ldd { root_dir }{ self._path }"
+        response = subprocess.check_output(['ldd', f"{ root_dir }/{self._package}{ self._path }"]).decode('utf-8').split("\n")
+
+        # remove leading tabs
+        lines = [line.strip().split() for line in response]
+        libs = [lib[2] for lib in lines if len(lib) > 2]
+
+        return libs
 
 
 class DynamicLibrary(object):
     
-    def __init__(self, name, path=None):
+    def __init__(self, name, path=None, package=None):
         self._name = name
         self._path = path
-        self._package = None
+        self._package = package
         self._current = None
 
 # ===============================
@@ -341,27 +354,22 @@ if __name__ == "__main__":
 
     pkg = RPM(opts.package)
     pkg.retrieve(opts.package_dir)
-    #pkg.retrieve(opts.package_dir, unpack=opts.unpack_dir)
-    #pkg.unpack(opts.package_dir, opts.unpack_dir)
+    pkg.unpack(opts.package_dir, opts.unpack_dir)
+
+    executables = DynamicExecutable.find(os.path.join(opts.unpack_dir,pkg._name), package=pkg._name)
+    print(executables)
+
+    for exe in executables:
+        print(exe.dynamic_libraries(opts.unpack_dir))
 
     sys.exit(1)
 
     # * pull
     # * unpack
     
-    if opts.pull:
-        packages = pull_packages(opts.package_dir, opts.package_name)
-    else:
-        packages = os.listdir(opts.package_dir)
-
-    if opts.unpack:
-        for package in packages:
-            unpack_package(os.path.join(opts.package_dir, opts.package_name), opts.unpack_dir)
-
-
-
     # Get a list of binary executable files in the unpacked tree
     executables = find_executable(opts.unpack_dir)
+
 
     # print(executables)
 
