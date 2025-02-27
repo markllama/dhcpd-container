@@ -5,7 +5,6 @@ and shared libraries needed for each file.
 """
 
 import argparse
-import distro
 import functools
 import os
 import re
@@ -50,61 +49,6 @@ def parse_args():
 # ----------------------
 # Package name parsing and comparison
 # ----------------------
-release_name_re = re.compile(r'^(.*)[-:]((\d+)\.(\d+)(\.(\d+))?-(\d+))\.(\S+)\.(\S+)$')
-    
-def parse_release_name(pkg):
-    """
-    Split a package name into components
-    (name,version(major, minor, release, build), distro, arch)
-
-    <name>-<version>.<distro>.<arch>$
-    """
-    match = release_name_re.match(pkg)
-
-    if match is None:
-        return None
-
-    return {
-        "name": match.group(1),
-        "version": match.group(2),
-        "major": int(match.group(3)),
-        "minor": int(match.group(4)),
-        "release": int(match.group(6)) if match.group(5) is not None else 0,
-        "build": int(match.group(7)),
-        "distro": match.group(8),
-        "arch": match.group(9)
-    }
-
-def compare_release_name(name1, name2):
-    """
-    Compare two RPM names.
-    If the name, distro or arch don't match, throw an error.
-    If they do match, compare the major, minor, release and build
-    """
-
-    rpm1 = parse_rpm_name(name1)
-    rpm2 = parse_rpm_name(name2)
-
-    if rpm1['name'] != rpm2['name']:
-        raise ValueError(f"mismatch package names: {rpm1['name']} != {rpm2['name']}")
-    if rpm1['distro'] != rpm2['distro']:
-        raise ValueError(f"mismatch package distro: {rpm1['distro']} != {rpm2['distro']}")
-    if rpm1['arch'] != rpm2['arch']:
-        raise ValueError(f"mismatch package arch: {rpm1['arch']} != {rpm2['arch']}")
-
-    if rpm1['major'] == rpm2['major']:
-        if rpm1['minor'] == rpm2['minor']:
-            if rpm1['release'] == rpm2['release']:
-                return rpm1['build'] - rpm2['build']
-            else:
-                return rpm1['release'] - rpm2['release']
-        else:
-            return rpm1['minor'] - rpm2['minor']
-    else:
-        return rpm1['major'] - rpm2['major']
-
-    raise ValueError("invalid package names")
-
 # ------------------------------------------------------------------------------
 # Package Management
 # ------------------------------------------------------------------------------
@@ -344,7 +288,7 @@ class YumPackage():
                         name = key
                         description = value
 
-            self._releases = releases
+            self._releases = sorted(releases, key=functools.cmp_to_key(YumRelease.compare), reverse=True)
 
         return self._releases
 
@@ -352,13 +296,107 @@ class YumRelease():
     """
     This represents a single release of a package from a yum repo
     """
-    def __init__(self, name, description=None, filename=None, repo=None):
-        self._name = name
+    def __init__(self, fullname, description=None, filename=None, repo=None):
+        self._fullname = fullname
         self._description = description
         self._filename = filename
         self._repo = repo
         self._url = None
-        
+
+    # class variable 
+    _release_name_re = re.compile(r'^(.*)[-:]((\d+)\.(\d+)(\.(\d+))?-(\d+))\.(\S+)\.(\S+)$')
+
+    @property
+    def fullname(self):
+        return self._fullname
+
+    @property
+    def spec(self):
+        """
+        Split a package name into components
+        (name,version(major, minor, release, build), distro, arch)
+
+        <name>-<version>.<distro>.<arch>$
+        """
+        match = self._release_name_re.match(self._fullname)
+
+        if match is None:
+            return None
+
+        return {
+            "name": match.group(1),
+            "version": match.group(2),
+            "major": int(match.group(3)),
+            "minor": int(match.group(4)),
+            "release": int(match.group(6)) if match.group(5) is not None else 0,
+            "build": int(match.group(7)),
+            "distro": match.group(8),
+            "arch": match.group(9)
+        }
+
+    @property
+    def name(self):
+        return self.spec['name']
+
+    @property
+    def version(self):
+        return self.spec['version']
+
+    @property
+    def major(self):
+        return self.spec['major']
+
+    @property
+    def minor(self):
+        return self.spec['minor']
+
+    @property
+    def release(self):
+        return self.spec['release']
+
+    @property
+    def build(self):
+        return self.spec['build']
+
+    @property
+    def distro(self):
+        return self.spec['distro']
+
+    @property
+    def arch(self):
+        return self.spec['arch']
+
+    @staticmethod
+    def compare(release1, release2):
+        """
+        Compare two RPM names.
+        If the name, distro or arch don't match, throw an error.
+        If they do match, compare the major, minor, release and build
+        """
+
+        rpm1 = release1.spec
+        rpm2 = release2.spec
+
+        if rpm1['name'] != rpm2['name']:
+            raise ValueError(f"mismatch package names: {rpm1['name']} != {rpm2['name']}")
+        if rpm1['distro'] != rpm2['distro']:
+            raise ValueError(f"mismatch package distro: {rpm1['distro']} != {rpm2['distro']}")
+        if rpm1['arch'] != rpm2['arch']:
+            raise ValueError(f"mismatch package arch: {rpm1['arch']} != {rpm2['arch']}")
+
+        if rpm1['major'] == rpm2['major']:
+            if rpm1['minor'] == rpm2['minor']:
+                if rpm1['release'] == rpm2['release']:
+                    return rpm1['build'] - rpm2['build']
+                else:
+                    return rpm1['release'] - rpm2['release']
+            else:
+                return rpm1['minor'] - rpm2['minor']
+        else:
+            return rpm1['major'] - rpm2['major']
+
+        raise ValueError("invalid package names")
+
 # ===============================
 # MAIN
 # ===============================
@@ -373,6 +411,7 @@ if __name__ == "__main__":
     pkg.retrieve(opts.package_dir)
     pkg.unpack(opts.package_dir, opts.unpack_dir)
 
+    # pkg.executables
     executables = DynamicExecutable.find(os.path.join(opts.unpack_dir,pkg._name), package=pkg._name)
 
     for exe in executables:
@@ -381,3 +420,4 @@ if __name__ == "__main__":
         for lib in libraries:
             lib_pkg = lib.package()
             releases = lib_pkg.releases
+
