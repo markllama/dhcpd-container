@@ -62,6 +62,123 @@ def parse_args():
 # Package name parsing and comparison
 # ----------------------
 # ------------------------------------------------------------------------------
+# Executable Binary record
+# ------------------------------------------------------------------------------
+class DynamicExecutable(object):
+
+    def __init__(self, name, path=None, package=None):
+        self._name = name
+        self._path = path
+        #self._name = basename[path]
+        self._package = package
+        self._dependancies = []
+        self._libraries = None
+
+    @staticmethod
+    def find(root_dir, package=None):
+        """
+        Return a list of executable files in a file tree.
+        """
+        exec_paths = []
+        for (dirpath, dirnames, filenames) in os.walk(root_dir):
+            for f in filenames:
+                path = os.path.join(dirpath, f)
+                fstat = os.lstat(path)
+                try:
+                    # check each file for permission 'x' in mode string
+                    # raises exception if no match
+                    stat.filemode(fstat.st_mode).index('x')
+
+                    # don't include symlinks
+                    stat.S_ISLNK(fstat.st_mode) or exec_paths.append(path)
+                
+                except ValueError:
+                    # str.index throws ValueError if match is not found
+                    # meaning the file isn't executable
+                    next
+
+        # normalize to the OS path (remove the local root dir path
+        #return [ path.replace(root_dir,'') for path in executables ]
+        execs = {}
+        for path in exec_paths:
+            # create a DynamicExecutable object for each path
+            dyn_exec = DynamicExecutable(path.split('/')[-1],
+                                         path=path.replace(root_dir, ''),
+                                         package=package)
+            execs[dyn_exec._name] = dyn_exec
+
+        return execs
+
+    def libraries(self, root_dir=None):
+        """
+        Given the root of a tree containing a dynamically linked executable,
+        And the normalized path of the executable file,
+        Get the list of shared libraries.
+        """
+
+        if self._libraries is None and root_dir is not None:
+            #dlink_root = os.path.join(root_dir, self._package, self._path)
+            dlink_root = f"{ root_dir }/{ self._package }{ self._path }"
+            response = subprocess.check_output(['ldd', dlink_root]).decode('utf-8').split("\n")
+
+            # remove leading tabs
+            lines = [line.strip().split() for line in response]
+
+            libpaths = [lib[2] for lib in lines if len(lib) > 2]
+            libraries = [DynamicLibrary(path.split('/')[-1], path=path) for path in libpaths]
+            self._libraries = libraries
+            
+        return self._libraries
+
+    def resolve(self, root_dir):
+        """
+        Find all of the libraries and their packages
+        """
+        for lib in self.libraries(root_dir):
+            lib.package().releases()
+
+
+    def model(self, root_dir, model_dir):
+        """
+        Build a model file tree for a container image for the daemon.
+
+        - create the root directory
+        - place the binary file in the tree
+        - for each library
+        -   * fetch the package
+            * unpack the package
+            * copy the file
+        """
+        pass
+        
+class DynamicLibrary(object):
+    
+    def __init__(self, name, path=None):
+        self._name = name
+        if path:
+            self._path = path if path.startswith("/usr") else "/usr" + path
+        else:
+            self._path = path
+        self._package = None
+        self._sources = None
+        self._current = None
+
+
+    def package(self, path=None):
+        """
+        Determine what package(s) provide this library
+        """
+
+        if path is not None:
+            self._path = path
+
+        if self._package is None:
+            self._package = Package(filename=self._path)
+
+        return self._package
+
+
+# ------------------------------------------------------------------------------
 # Package Management
 # ------------------------------------------------------------------------------
 class Package(object):
@@ -312,115 +429,6 @@ class Release():
         raise ValueError("invalid package names")
 
 
-# ------------------------------------------------------------------------------
-# Executable Binary record
-# ------------------------------------------------------------------------------
-class DynamicExecutable(object):
-
-    def __init__(self, name, path=None, package=None):
-        self._name = name
-        self._path = path
-        #self._name = basename[path]
-        self._package = package
-        self._dependancies = []
-        self._libraries = None
-
-    @staticmethod
-    def find(root_dir, package=None):
-        """
-        Return a list of executable files in a file tree.
-        """
-        exec_paths = []
-        for (dirpath, dirnames, filenames) in os.walk(root_dir):
-            for f in filenames:
-                path = os.path.join(dirpath, f)
-                fstat = os.lstat(path)
-                try:
-                    # check each file for permission 'x' in mode string
-                    # raises exception if no match
-                    stat.filemode(fstat.st_mode).index('x')
-
-                    # don't include symlinks
-                    stat.S_ISLNK(fstat.st_mode) or exec_paths.append(path)
-                
-                except ValueError:
-                    # str.index throws ValueError if match is not found
-                    # meaning the file isn't executable
-                    next
-
-        # normalize to the OS path (remove the local root dir path
-        #return [ path.replace(root_dir,'') for path in executables ]
-        execs = {}
-        for path in exec_paths:
-            # create a DynamicExecutable object for each path
-            dyn_exec = DynamicExecutable(path.split('/')[-1],
-                                         path=path.replace(root_dir, ''),
-                                         package=package)
-            execs[dyn_exec._name] = dyn_exec
-
-        return execs
-
-    def libraries(self, root_dir=None):
-        """
-        Given the root of a tree containing a dynamically linked executable,
-        And the normalized path of the executable file,
-        Get the list of shared libraries.
-        """
-
-        if self._libraries is None and root_dir is not None:
-            #dlink_root = os.path.join(root_dir, self._package, self._path)
-            dlink_root = f"{ root_dir }/{ self._package }{ self._path }"
-            response = subprocess.check_output(['ldd', dlink_root]).decode('utf-8').split("\n")
-
-            # remove leading tabs
-            lines = [line.strip().split() for line in response]
-
-            libpaths = [lib[2] for lib in lines if len(lib) > 2]
-            libraries = [DynamicLibrary(path.split('/')[-1], path=path) for path in libpaths]
-            self._libraries = libraries
-            
-        return self._libraries
-
-    def resolve(self, root_dir):
-        """
-        Find all of the libraries and their packages
-        """
-        for lib in self.libraries(root_dir):
-            lib.package().releases()
-
-
-    def model(self, root_dir, model_dir):
-        """
-        Build a model file tree for a container image for the daemno
-        """
-        pass
-        
-class DynamicLibrary(object):
-    
-    def __init__(self, name, path=None):
-        self._name = name
-        if path:
-            self._path = path if path.startswith("/usr") else "/usr" + path
-        else:
-            self._path = path
-        self._package = None
-        self._sources = None
-        self._current = None
-
-
-    def package(self, path=None):
-        """
-        Determine what package(s) provide this library
-        """
-
-        if path is not None:
-            self._path = path
-
-        if self._package is None:
-            self._package = Package(filename=self._path)
-
-        return self._package
-
 # ===============================
 # MAIN
 # ===============================
@@ -446,7 +454,7 @@ if __name__ == "__main__":
     daemon_exe.resolve(opts.unpack_dir)
 
     # Create a file tree for the daemon container
-    daemon_exe.model_tree(opts.unpack_dir, opts.model_dir)
+    daemon_exe.model(opts.unpack_dir, opts.model_dir)
     
 
     
