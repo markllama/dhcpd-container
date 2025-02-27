@@ -1,2 +1,6 @@
 # Ignore Emacs backup files
 *~
+
+__pycache__
+
+minimize
