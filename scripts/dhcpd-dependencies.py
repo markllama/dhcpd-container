@@ -2,6 +2,20 @@
 """
 Find the binaries in a specified RPM and list the required packages
 and shared libraries needed for each file.
+
+* Retrieve and unpack a copy of the parent package
+* Identify binary executables
+* For each binary executable
+* - Identify shared object libraries
+* - Determine file path for each shared object library
+* - Determine the provider package for each shared object library
+* For each container image
+* - Create empty file tree root
+* - Copy binary to container file tree
+* - For each dynamic library file
+*   - Retrieve package file
+*   - Unpack package file
+*   - Copy shared object library file into container file tree
 """
 
 import argparse
@@ -16,8 +30,10 @@ import yaml
 
 defaults = {
     'package_name': "dhcp-server",
+    'daemon_file':  "dhcpd",
     'package_dir':  "./minimize/packages",
-    'unpack_dir':   "./minimize/unpack"
+    'unpack_dir':   "./minimize/unpack",
+    'model_dir': "./minimize/model"
 }
 
 #
@@ -33,13 +49,9 @@ def parse_args():
     # operational parameters
     parser.add_argument('--package-dir', default=defaults['package_dir'])
     parser.add_argument('--unpack-dir', default=defaults['unpack_dir'])
-    #parser.add_argument('--package-name')
+    parser.add_argument('--model-dir', default=defaults['model_dir'])
 
-    # parser.add_arguments("--steps")
-    
-    # Operation Controls    
-    parser.add_argument("--pull", type=bool, default=False)
-    parser.add_argument("--unpack", type=bool, default=False)
+    parser.add_argument("--daemon-file", default=defaults['daemon_file'])
 
     # Positional arguments
     parser.add_argument("package", default=defaults['package_name'])
@@ -61,6 +73,13 @@ class Package(object):
         self._dependencies = []
         self._url = None
 
+    @property
+    def name(self):
+        if self._name is None:
+            if self._filename is not None:
+                self.releases()
+        return self._name
+        
     @property
     def url(self):
         """
@@ -132,7 +151,6 @@ class Package(object):
         unpack = subprocess.Popen(unpack_command.split(), stdin=convert.stdout)
         convert.wait()
 
-    @property
     def releases(self):
                 
         if self._filename is None:
@@ -332,13 +350,13 @@ class DynamicExecutable(object):
 
         # normalize to the OS path (remove the local root dir path
         #return [ path.replace(root_dir,'') for path in executables ]
-        execs = []
+        execs = {}
         for path in exec_paths:
             # create a DynamicExecutable object for each path
             dyn_exec = DynamicExecutable(path.split('/')[-1],
                                          path=path.replace(root_dir, ''),
                                          package=package)
-            execs.append(dyn_exec)
+            execs[dyn_exec._name] = dyn_exec
 
         return execs
 
@@ -363,6 +381,20 @@ class DynamicExecutable(object):
             
         return self._libraries
 
+    def resolve(self, root_dir):
+        """
+        Find all of the libraries and their packages
+        """
+        for lib in self.libraries(root_dir):
+            lib.package().releases()
+
+
+    def model(self, root_dir, model_dir):
+        """
+        Build a model file tree for a container image for the daemno
+        """
+        pass
+        
 class DynamicLibrary(object):
     
     def __init__(self, name, path=None):
@@ -393,23 +425,28 @@ class DynamicLibrary(object):
 # MAIN
 # ===============================
 if __name__ == "__main__":
-
-    steps = ['pull', 'unpack', 'exec', 'dlink', 'paths', 'pkgs', ]
         
     opts = parse_args()
 
+    # Identify and pull a copy of the service deaemon package
     pkg = Package(opts.package)
-
     pkg.retrieve(opts.package_dir)
     pkg.unpack(opts.package_dir, opts.unpack_dir)
 
-    # pkg.executables
-    executables = DynamicExecutable.find(os.path.join(opts.unpack_dir,pkg._name), package=pkg._name)
+    # Find the executable files in the package file tree
+    executables = DynamicExecutable.find(
+        os.path.join(opts.unpack_dir,pkg._name),
+        package=pkg._name
+    )
 
-    for exe in executables:
-        libraries = exe.libraries(opts.unpack_dir)
-        
-        for lib in libraries:
-            lib_pkg = lib.package()
-            releases = lib_pkg.releases
+    # Select the binary to package
+    daemon_exe = executables[opts.daemon_file]
 
+    # Find all shared libraries and their packages
+    daemon_exe.resolve(opts.unpack_dir)
+
+    # Create a file tree for the daemon container
+    daemon.exe.model_tree(opts.unpack_dir, opts.model_dir)
+    
+
+    
