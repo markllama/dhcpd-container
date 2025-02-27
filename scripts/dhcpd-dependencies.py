@@ -446,7 +446,7 @@ if __name__ == "__main__":
     daemon_exe.resolve(opts.unpack_dir)
 
     # Create a file tree for the daemon container
-    daemon.exe.model_tree(opts.unpack_dir, opts.model_dir)
+    daemon_exe.model_tree(opts.unpack_dir, opts.model_dir)
     
 
     
