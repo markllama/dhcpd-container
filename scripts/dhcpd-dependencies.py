@@ -19,7 +19,6 @@ defaults = {
     'package_name': "dhcp-server",
     'package_dir':  "./minimize/packages",
     'unpack_dir':   "./minimize/unpack"
-    
 }
 
 #
@@ -48,79 +47,19 @@ def parse_args():
 
     return parser.parse_args()
 
-# ============================================================
-# Refactor these
-# ============================================================
-
-def find_lib_package(libname):
-
-    provides_command=f"dnf --quiet provides {libname}"
-
-    response = subprocess.check_output(provides_command.split()).decode('utf-8').split("\n")
-    packages = []
-    #
-    # <pkgname>    : <description>
-    # Repo         : <reponame>
-    # Matched From : blank
-    # Filename     : <filename>
-    # <blank>
-    pkgname = None
-    pkg = {}
-    for line in response:
-        match = re.match(r"^(\S+\s?\S+)\s+:\s+(.*)$", line)
-        if match != None:
-            # figure out which
-            (key, value) = match.groups(1)
-            key = key.lower()
-            if key in ['repo', 'filename']:
-                pkg[key] = value
-            elif key == 'matched from':
-                next
-            else:
-                pkg['name'] = key
-                pkg['description'] = value
-        else:
-            if len(pkg) != 0:
-                packages.append(pkg)
-                pkg = {}
-
-        packages.append(pkg)
-
-    return packages
-
-# --------------------------------------------------
-# Executable file discovery and inspection functions
-# --------------------------------------------------
-
-def resolve_shared_libraries(root_dir, exe_path):
-    """
-    Given the root of a tree containing a dynamically linked executable,
-    And the normalized path of the executable file,
-    Get the list of shared libraries.
-    """
-
-    dlink_command = f"ldd { root_dir }{ exe_path}"
-    response = subprocess.check_output(['ldd', f"{ root_dir }{ exe_path }"]).decode('utf-8').split("\n")
-
-    # remove leading tabs
-    lines = [line.strip().split() for line in response]
-    libs = [lib[2] for lib in lines if len(lib) > 2]
-
-    return libs
-
 # ----------------------
 # Package name parsing and comparison
 # ----------------------
-rpm_re = re.compile(r'^(.*)[-:]((\d+)\.(\d+)(\.(\d+))?-(\d+))\.(\S+)\.(\S+)$')
+release_name_re = re.compile(r'^(.*)[-:]((\d+)\.(\d+)(\.(\d+))?-(\d+))\.(\S+)\.(\S+)$')
     
-def parse_rpm_name(pkg):
+def parse_release_name(pkg):
     """
     Split a package name into components
     (name,version(major, minor, release, build), distro, arch)
 
     <name>-<version>.<distro>.<arch>$
     """
-    match = rpm_re.match(pkg)
+    match = release_name_re.match(pkg)
 
     if match is None:
         return None
@@ -136,7 +75,7 @@ def parse_rpm_name(pkg):
         "arch": match.group(9)
     }
 
-def compare_rpm_name(name1, name2):
+def compare_release_name(name1, name2):
     """
     Compare two RPM names.
     If the name, distro or arch don't match, throw an error.
@@ -169,7 +108,7 @@ def compare_rpm_name(name1, name2):
 # ------------------------------------------------------------------------------
 # Package Management
 # ------------------------------------------------------------------------------
-class RPM(object):
+class Package(object):
 
     def __init__(self, name):
         self._name = name
@@ -338,48 +277,88 @@ class DynamicLibrary(object):
         if path is not None:
             self._path = path
 
-        if self._package is not None:
-            return self._package
+        if self._package is None:
+            self._package = YumPackage(filename=self._path)
+
+        return self._package
+
+class YumPackage():
+    """
+    This represents a package offered from a repo
+    It includes all of the available variants and versions
+    """
+    def __init__(self, name=None, filename=None):
+        self._name = name
+        self._filename = filename
+        self._releases = None
+
+    @property
+    def releases(self):
+                
+        if self._filename is None:
+            raise ValueError(f"no filename defined for package { self._name }")
         
-        provides_command=f"dnf --quiet provides {self._path}"
-        try: 
-            response = subprocess.check_output(provides_command.split()).decode('utf-8').split("\n")
-        except subprocess.CalledProcessError as e:
-            provides_command=f"dnf --quiet provides { self._path.replace('/usr', '') }"
-            response = subprocess.check_output(provides_command.split()).decode('utf-8').split("\n")
-        packages = []
-        pkgname = None
-        # The stdout contains a series of RPM records  like this
-        #
-        # <pkgname>    : <description>
-        # Repo         : <reponame>
-        # Matched From : blank
-        # Filename     : <filename>
-        # <blank>
-        pkg = {}
-        for line in response:
-            match = re.match(r"^(\S+\s?\S+)\s+:\s+(.*)$", line)
-            if match != None:
-                # figure out which
-                (key, value) = match.groups(1)
-                key = key.lower()
-                if key in ['repo', 'filename']:
-                    pkg[key] = value
-                elif key == 'matched from':
-                    next
+        if self._releases is None:
+            # find all the available releases
+            try: 
+                provides_command=f"dnf --quiet provides {self._filename}"
+                response = subprocess.check_output(provides_command.split(), stderr=subprocess.DEVNULL).decode('utf-8').split("\n")
+            except subprocess.CalledProcessError as e:
+                provides_cmd=f"dnf --quiet provides { self._filename.replace('/usr', '') }"
+                response = subprocess.check_output(provides_cmd.split()).decode('utf-8').split("\n")
+
+            # The stdout contains a series of RPM records  like this
+            #
+            # <pkgname>    : <description>
+            # Repo         : <reponame>
+            # Matched From : blank
+            # Filename     : <filename>
+            # <blank>
+            entry_re = re.compile(r"^(\S+\s?\S+)\s+:\s+(.*)$")
+            releases = []
+            name = None
+            description = None
+            filename = None
+            repo = None
+            
+            for line in response:
+                match = entry_re.match(line)
+                if match == None:
+                    if name is not None:
+                        releases.append(YumRelease(name, description, filename, repo))
+                        name = None
+                        description = None
+                        filename = None
+                        repo = None
                 else:
-                    pkg['name'] = key
-                    pkg['description'] = value
-            else:
-                if len(pkg) != 0:
-                    packages.append(pkg)
-                    pkg = {}
+                    # extract key/value
+                    (key, value) = match.groups(1)
+                    key = key.lower()
+                    if key == 'repo':
+                        repo = value
+                    elif key == 'filename':
+                        filename = value
+                    elif key == 'matched from':
+                        next
+                    else:
+                        name = key
+                        description = value
 
-        self._packages = packages
+            self._releases = releases
 
-        # Now find the most recent source and get the package name
-        return packages
+        return self._releases
 
+class YumRelease():
+    """
+    This represents a single release of a package from a yum repo
+    """
+    def __init__(self, name, description=None, filename=None, repo=None):
+        self._name = name
+        self._description = description
+        self._filename = filename
+        self._repo = repo
+        self._url = None
+        
 # ===============================
 # MAIN
 # ===============================
@@ -389,103 +368,16 @@ if __name__ == "__main__":
         
     opts = parse_args()
 
-    pkg = RPM(opts.package)
+    pkg = Package(opts.package)
+
     pkg.retrieve(opts.package_dir)
     pkg.unpack(opts.package_dir, opts.unpack_dir)
 
     executables = DynamicExecutable.find(os.path.join(opts.unpack_dir,pkg._name), package=pkg._name)
-    print(executables)
 
     for exe in executables:
         libraries = exe.libraries(opts.unpack_dir)
-
+        
         for lib in libraries:
-            print(f"finding package for library { lib._name }")
-            pkg = lib.package()
-            print(f"package: { pkg }")
-            
-    
-    sys.exit(1)
-
-    # * pull
-    # * unpack
-    
-    # Get a list of binary executable files in the unpacked tree
-    executables = find_executable(opts.unpack_dir)
-
-
-    # print(executables)
-
-    # executable
-    # {
-    #   'name': "",
-    #   'path': "",
-    #   'package': "",
-    #   'libraries': [
-    #      # Dynamic library entries
-    #      {
-    #        'filename': "",
-    #        'filepath': "",
-    #        'packname': "",
-    #        'currvers': ""
-    #      },...
-    #   ]
-    # }
-
-    # Find the shared libraries required by the binary
-    shared_libraries = {}
-    for exe_name in executables:
-        shared_libraries[exe_name] = {
-            'libfiles': resolve_shared_libraries(opts.unpack_dir, exe_name),
-            'libpaths': {}
-        }
-
-    # Find the path of each shared library
-    # print(yaml.dump(shared_libraries, indent=2))
-
-    for exe in shared_libraries.keys():
-
-        # Find the package that provides that file
-        for lib in shared_libraries[exe]['libfiles']:
-            try:
-                path = '/usr' + lib
-                pkg = find_lib_package(path)
-            except subprocess.CalledProcessError:
-                path = lib
-                pkg = find_lib_package(path)
-
-            shared_libraries[exe]['libpaths'][path] = pkg
-
-        for libfile in shared_libraries[exe]['libpaths'].keys():
-            
-            # now find the hightest version package
-            versions = [ x['name'] for x in shared_libraries[exe]['libpaths'][libfile] ]
-            versions.sort(reverse=True)
-            #print(f"Library File: { libfile } from package {versions[0]}")
-
-    #
-    # Now, for each executable, find the packages needed
-    #
-
-    #print(yaml.dump(shared_libraries))
-
-    for exe_path in shared_libraries.keys():
-        print(f"- exe path: { exe_path }")
-        packages = set()
-        for lib_file_path in shared_libraries[exe_path]['libpaths'].keys():
-            print(f"  - { lib_file_path }", end="")
-            pkg_list = shared_libraries[exe_path]['libpaths'][lib_file_path]
-            # Remove duplicates with a set then convert back to list for sort
-            pkg_name_list = list(set([pkg['name'] for pkg in pkg_list]))
-            # print(f"    { pkg_name_list }")
-            pkg_name_list.sort(key=functools.cmp_to_key(compare_rpm_name), reverse=True)
-            #print(f"    sorted { pkg_name_list }")
-            pkg_name = parse_rpm_name(pkg_name_list[0])['name']
-
-            print(f"  {pkg_name}")
-            # remove duplicates with 
-            # get a sorted list of the package versions
-            packages.add(pkg_name)
-
-
-    print(sorted(list(packages)))
+            lib_pkg = lib.package()
+            releases = lib_pkg.releases
