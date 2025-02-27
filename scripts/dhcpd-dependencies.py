@@ -54,11 +54,12 @@ def parse_args():
 # ------------------------------------------------------------------------------
 class Package(object):
 
-    def __init__(self, name):
+    def __init__(self, name=None, filename=None):
         self._name = name
-        self._url = None
-        self._filename = None
+        self._filename = filename
+        self._releases = None
         self._dependencies = []
+        self._url = None
 
     @property
     def url(self):
@@ -131,111 +132,6 @@ class Package(object):
         unpack = subprocess.Popen(unpack_command.split(), stdin=convert.stdout)
         convert.wait()
 
-# ------------------------------------------------------------------------------
-# Executable Binary record
-# ------------------------------------------------------------------------------
-class DynamicExecutable(object):
-
-    def __init__(self, name, path=None, package=None):
-        self._name = name
-        self._path = path
-        #self._name = basename[path]
-        self._package = package
-        self._dependancies = []
-        self._libraries = None
-
-    @staticmethod
-    def find(root_dir, package=None):
-        """
-        Return a list of executable files in a file tree.
-        """
-        exec_paths = []
-        for (dirpath, dirnames, filenames) in os.walk(root_dir):
-            for f in filenames:
-                path = os.path.join(dirpath, f)
-                fstat = os.lstat(path)
-                try:
-                    # check each file for permission 'x' in mode string
-                    # raises exception if no match
-                    stat.filemode(fstat.st_mode).index('x')
-
-                    # don't include symlinks
-                    stat.S_ISLNK(fstat.st_mode) or exec_paths.append(path)
-                
-                except ValueError:
-                    # str.index throws ValueError if match is not found
-                    # meaning the file isn't executable
-                    next
-
-        # normalize to the OS path (remove the local root dir path
-        #return [ path.replace(root_dir,'') for path in executables ]
-        execs = []
-        for path in exec_paths:
-            # create a DynamicExecutable object for each path
-            dyn_exec = DynamicExecutable(path.split('/')[-1],
-                                         path=path.replace(root_dir, ''),
-                                         package=package)
-            execs.append(dyn_exec)
-
-        return execs
-
-    def libraries(self, root_dir=None):
-        """
-        Given the root of a tree containing a dynamically linked executable,
-        And the normalized path of the executable file,
-        Get the list of shared libraries.
-        """
-
-        if self._libraries is None and root_dir is not None:
-            #dlink_root = os.path.join(root_dir, self._package, self._path)
-            dlink_root = f"{ root_dir }/{ self._package }{ self._path }"
-            response = subprocess.check_output(['ldd', dlink_root]).decode('utf-8').split("\n")
-
-            # remove leading tabs
-            lines = [line.strip().split() for line in response]
-
-            libpaths = [lib[2] for lib in lines if len(lib) > 2]
-            libraries = [DynamicLibrary(path.split('/')[-1], path=path) for path in libpaths]
-            self._libraries = libraries
-            
-        return self._libraries
-
-class DynamicLibrary(object):
-    
-    def __init__(self, name, path=None):
-        self._name = name
-        if path:
-            self._path = path if path.startswith("/usr") else "/usr" + path
-        else:
-            self._path = path
-        self._package = None
-        self._sources = None
-        self._current = None
-
-
-    def package(self, path=None):
-        """
-        Determine what package(s) provide this library
-        """
-
-        if path is not None:
-            self._path = path
-
-        if self._package is None:
-            self._package = YumPackage(filename=self._path)
-
-        return self._package
-
-class YumPackage():
-    """
-    This represents a package offered from a repo
-    It includes all of the available variants and versions
-    """
-    def __init__(self, name=None, filename=None):
-        self._name = name
-        self._filename = filename
-        self._releases = None
-
     @property
     def releases(self):
                 
@@ -269,7 +165,7 @@ class YumPackage():
                 match = entry_re.match(line)
                 if match == None:
                     if name is not None:
-                        releases.append(YumRelease(name, description, filename, repo))
+                        releases.append(Release(name, description, filename, repo))
                         name = None
                         description = None
                         filename = None
@@ -288,11 +184,11 @@ class YumPackage():
                         name = key
                         description = value
 
-            self._releases = sorted(releases, key=functools.cmp_to_key(YumRelease.compare), reverse=True)
+            self._releases = sorted(releases, key=functools.cmp_to_key(Release.compare), reverse=True)
 
         return self._releases
 
-class YumRelease():
+class Release():
     """
     This represents a single release of a package from a yum repo
     """
@@ -396,6 +292,102 @@ class YumRelease():
             return rpm1['major'] - rpm2['major']
 
         raise ValueError("invalid package names")
+
+
+# ------------------------------------------------------------------------------
+# Executable Binary record
+# ------------------------------------------------------------------------------
+class DynamicExecutable(object):
+
+    def __init__(self, name, path=None, package=None):
+        self._name = name
+        self._path = path
+        #self._name = basename[path]
+        self._package = package
+        self._dependancies = []
+        self._libraries = None
+
+    @staticmethod
+    def find(root_dir, package=None):
+        """
+        Return a list of executable files in a file tree.
+        """
+        exec_paths = []
+        for (dirpath, dirnames, filenames) in os.walk(root_dir):
+            for f in filenames:
+                path = os.path.join(dirpath, f)
+                fstat = os.lstat(path)
+                try:
+                    # check each file for permission 'x' in mode string
+                    # raises exception if no match
+                    stat.filemode(fstat.st_mode).index('x')
+
+                    # don't include symlinks
+                    stat.S_ISLNK(fstat.st_mode) or exec_paths.append(path)
+                
+                except ValueError:
+                    # str.index throws ValueError if match is not found
+                    # meaning the file isn't executable
+                    next
+
+        # normalize to the OS path (remove the local root dir path
+        #return [ path.replace(root_dir,'') for path in executables ]
+        execs = []
+        for path in exec_paths:
+            # create a DynamicExecutable object for each path
+            dyn_exec = DynamicExecutable(path.split('/')[-1],
+                                         path=path.replace(root_dir, ''),
+                                         package=package)
+            execs.append(dyn_exec)
+
+        return execs
+
+    def libraries(self, root_dir=None):
+        """
+        Given the root of a tree containing a dynamically linked executable,
+        And the normalized path of the executable file,
+        Get the list of shared libraries.
+        """
+
+        if self._libraries is None and root_dir is not None:
+            #dlink_root = os.path.join(root_dir, self._package, self._path)
+            dlink_root = f"{ root_dir }/{ self._package }{ self._path }"
+            response = subprocess.check_output(['ldd', dlink_root]).decode('utf-8').split("\n")
+
+            # remove leading tabs
+            lines = [line.strip().split() for line in response]
+
+            libpaths = [lib[2] for lib in lines if len(lib) > 2]
+            libraries = [DynamicLibrary(path.split('/')[-1], path=path) for path in libpaths]
+            self._libraries = libraries
+            
+        return self._libraries
+
+class DynamicLibrary(object):
+    
+    def __init__(self, name, path=None):
+        self._name = name
+        if path:
+            self._path = path if path.startswith("/usr") else "/usr" + path
+        else:
+            self._path = path
+        self._package = None
+        self._sources = None
+        self._current = None
+
+
+    def package(self, path=None):
+        """
+        Determine what package(s) provide this library
+        """
+
+        if path is not None:
+            self._path = path
+
+        if self._package is None:
+            self._package = Package(filename=self._path)
+
+        return self._package
 
 # ===============================
 # MAIN
