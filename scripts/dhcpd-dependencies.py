@@ -139,7 +139,7 @@ class DynamicExecutable(object):
             lib.package().releases()
 
 
-    def model(self, package_dir, unpack_dir, model_dir, debug=False):
+    def model(self, package_dir, unpack_dir, model_dir, follow_symlinks=False, debug=False):
         """
         Build a model file tree for a container image for the daemon.
 
@@ -165,7 +165,7 @@ class DynamicExecutable(object):
 
         # copy the binary
         os.makedirs(os.path.dirname(dst), exist_ok=True)
-        shutil.copy(src, dst)
+        shutil.copy(src, dst, follow_symlinks=follow_symlinks)
 
         # for each shared library:
         # - retrieve
@@ -181,11 +181,22 @@ class DynamicExecutable(object):
 
             # mkdir
             # copy
-            src = f"{unpack_dir}/{lib._package.name}{lib._package._releases[0]._filename}"
-            dst = f"{model_dir}{lib._package._releases[0]._filename}"
+            filename = lib._package._releases[0]._filename
+            src = f"{unpack_dir}/{lib._package.name}{filename}"
+            dst = f"{model_dir}{filename}"
             debug and print(f"unpacking {src} to {dst}")
             os.makedirs(os.path.dirname(dst), exist_ok=True)
-            shutil.copy(src, dst)
+            shutil.copy(src, dst, follow_symlinks=False)
+
+            # If the copied file is a symlink
+            if stat.S_ISLNK(os.lstat(dst).st_mode):
+                # get the destination and copy that too
+                link_value = os.readlink(src)
+                print(f"library {src} is a symlink to {link_value}")
+                src=f"{os.path.dirname(src)}/{link_value}"
+                dst=f"{os.path.dirname(dst)}/{link_value}"
+                shutil.copy(src, dst, follow_symlinks=follow_symlinks)
+
 
 class DynamicLibrary(object):
     
