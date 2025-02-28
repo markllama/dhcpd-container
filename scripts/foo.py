@@ -139,7 +139,7 @@ class DynamicExecutable(object):
             lib.package().releases()
 
 
-    def model(self, package_dir, unpack_dir, model_dir, follow_symlinks=False):
+    def model(self, package_dir, unpack_dir, model_dir, debug=False):
         """
         Build a model file tree for a container image for the daemon.
 
@@ -153,8 +153,7 @@ class DynamicExecutable(object):
             * copy the file
         """
         
-        dst_root = f"{ model_dir }/{self._name}"
-        os.makedirs(dst_root, exist_ok=True)
+        os.makedirs(model_dir, exist_ok=True)
 
         pkg = Package(self._package)
         # Get the daemon binary first
@@ -162,11 +161,24 @@ class DynamicExecutable(object):
         pkg.unpack(package_dir, unpack_dir)
 
         src = f"{unpack_dir}/{pkg._name}/{self._path}"
-        dst = f"{dst_root}/{self._path}"
+        dst = f"{model_dir}/{self._path}"
 
         # copy the binary
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        shutil.copy(src, dst, follow_symlinks=follow_symlinks)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)        
+        shutil.copy(src, dst, follow_symlinks=False)
+                try:
+                    # check each file for permission 'x' in mode string
+                    # raises exception if no match
+                    stat.filemode(fstat.st_mode).index('x')
+
+                    # don't include symlinks
+                    stat.S_ISLNK(fstat.st_mode) or exec_paths.append(path)
+                
+                except ValueError:
+                    # str.index throws ValueError if match is not found
+                    # meaning the file isn't executable
+                    next
+
 
         # for each shared library:
         # - retrieve
@@ -174,25 +186,25 @@ class DynamicExecutable(object):
         # - mkdir
         # - copy
         for lib in self.libraries():
-            lib._package.retrieve(package_dir)
+            debug and print(f"Processing lib: {lib._path}")
+            debug and print(f"Package: { lib._package._releases[0].spec }")
+            lib._package.retrieve(package_dir, debug=debug)
+            debug and print(f"Library path: {lib._path}, Package Path: {lib._package._releases[0]._filename}")
             lib._package.unpack(package_dir, unpack_dir)
 
             # mkdir
             # copy
-            filename = lib._package._releases[0]._filename
-            src = f"{unpack_dir}/{lib._package.name}{filename}"
-            dst = f"{dst_root}{filename}"
+            src = f"{unpack_dir}/{lib._package.name}{lib._package._releases[0]._filename}"
+            dst = f"{model_dir}{lib._package._releases[0]._filename}"
+            debug and print(f"unpacking {src} to {dst}")
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.copy(src, dst, follow_symlinks=False)
-
+            
             # If the copied file is a symlink
-            if stat.S_ISLNK(os.lstat(dst).st_mode):
-                # get the destination and copy that too
+            if stat.S_ISLNK(os.lstat(src).stat.st_mode):
                 link_value = os.readlink(src)
-                src=f"{os.path.dirname(src)}/{link_value}"
-                dst=f"{os.path.dirname(dst)}/{link_value}"
-                shutil.copy(src, dst, follow_symlinks=follow_symlinks)
-
+                # get the destination and copy that too
+        
 
 class DynamicLibrary(object):
     
@@ -223,20 +235,21 @@ class DynamicLibrary(object):
 
     def retrieve_package(self, path=None):
         self._package.retrieve(path)
-
-
+        
+    
 # ------------------------------------------------------------------------------
 # Package Management
 # ------------------------------------------------------------------------------
 class Package():
 
-    def __init__(self, name=None, filename=None, url=None):
+    def __init__(self, name=None, filename=None, url=None, debug=False):
         self._name = name
         self._filename = filename
         self._executables = None
         self._releases = None
         self._dependencies = []
         self._url = url
+        self._debug = debug
 
     @property
     def name(self):
@@ -257,6 +270,12 @@ class Package():
             self._url = result.stdout.decode('utf-8').split("\n")[0]
             self._filename = self._url.split('/')[-1]
 
+            if self._url == '':
+                print(f"empty url in search response for {search}\n{result}")
+                print()
+                print(yaml.dump(self))
+                sys.exit(2)
+            
         return self._url
 
     def executables(self, unpack_dir):
@@ -288,7 +307,7 @@ class Package():
         
         return self._dependencies
 
-    def retrieve(self, destdir, dependencies=True):
+    def retrieve(self, destdir, dependencies=True, debug=False):
         """
         Retrieve an RPM and the dependencies from the default repository
         place the RPMs in the directory indicated.
@@ -297,16 +316,26 @@ class Package():
         # Create the destination directory 
         not os.path.isdir(destdir) and os.makedirs(destdir, exist_ok=True)
 
+        
+        
         url = self.url
         path = f"{ destdir }/{ self._filename }"
-
+        
+        debug and print(f"getting '{ path }' from '{ url }'")
+        if url == '':
+            
+            print(yaml.dump(self))
+            sys.exit(1)
+        
         os.path.exists(path) or urllib.request.urlretrieve(url, path)
+        #debug and print(os.listdir(destdir))
         
         # download each of the packages if needed
         if dependencies:
             for dep in self.dependencies:
                 # get the basename of the URL
                 path = os.path.join(destdir, dep._filename)
+                debug and print(f"getting dependency '{ path }' from '{ url }'")
                 os.path.exists(path) or urllib.request.urlretrieve(dep.url, path)
 
     def unpack(self, package_dir, destroot, force=False):
@@ -340,6 +369,7 @@ class Package():
                 provides_command=f"dnf --quiet provides {self._filename}"
                 response = subprocess.check_output(provides_command.split(), stderr=subprocess.DEVNULL).decode('utf-8').split("\n")
             except subprocess.CalledProcessError as e:
+                print(f"failed to find { self._filename }")
                 shortname = self._filename.replace('/usr', '')
                 provides_cmd=f"dnf --quiet provides { shortname }"
                 response = subprocess.check_output(provides_cmd.split()).decode('utf-8').split("\n")
@@ -418,6 +448,7 @@ class Release():
         match = self._release_name_re.match(self._fullname)
 
         if match is None:
+            print(f"No match for package: {self._fullname}")
             return None
 
         return {
@@ -506,8 +537,10 @@ if __name__ == "__main__":
 
     # Identify and pull a copy of the service deaemon package
     pkg = Package(opts.package)
-    pkg.retrieve(opts.package_dir)
+    pkg.retrieve(opts.package_dir, debug=True)
     pkg.unpack(opts.package_dir, opts.unpack_dir)
+
+    print(yaml.dump(pkg))
 
     # Find the executable files in the package file tree
     # executables = pkg.executables(opts._unpack_dir)
@@ -519,5 +552,7 @@ if __name__ == "__main__":
     # Find all shared libraries and their packages
     daemon_exe.resolve(opts.unpack_dir)
 
+    # print(yaml.dump(daemon_exe))
+
     # Create a file tree for the daemon container
-    daemon_exe.model(opts.package_dir, opts.unpack_dir, opts.model_dir)
+    daemon_exe.model(opts.package_dir, opts.unpack_dir, opts.model_dir, debug=True)
