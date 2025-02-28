@@ -502,15 +502,12 @@ if __name__ == "__main__":
         
     opts = parse_args()
 
-    # try load
-
     # Identify and pull a copy of the service deaemon package
     pkg = Package(opts.package)
     pkg.retrieve(opts.package_dir)
     pkg.unpack(opts.package_dir, opts.unpack_dir)
 
     # Find the executable files in the package file tree
-    # executables = pkg.executables(opts._unpack_dir)
     executables = pkg.executables(opts.unpack_dir)
 
     # Select the binary to package
