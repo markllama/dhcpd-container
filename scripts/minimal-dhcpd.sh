@@ -13,7 +13,7 @@ set -o errexit
 OPT_SPEC='n:r:'
 
 DEFAULT_NAME="dhcpd"
-DEFAULT_ROOT="minimal/model"
+DEFAULT_ROOT="minimize/model/dhcpd"
 
 : NAME="${NAME:=${DEFAULT_NAME}}"
 : ROOT="${ROOT:=${DEFAULT_ROOT}}"
@@ -23,11 +23,12 @@ function main() {
     parse_args
     
     # Create a container
-    CONTAINER=$(buildah from --name ${NAME} scratch)
-
-    # copy file tree
-    buildah copy ${CONTAINER} --contextdir ${ROOT}
+    CONTAINER=$(buildah from --name $NAME scratch)
     
+    MOUNTPOINT=$(buildah mount $CONTAINER)
+    cp -r $ROOT/* ${MOUNTPOINT}
+    buildah unmount $CONTAINER
+
     # add a volume to include the configuration file
     # Leave the files in the default locations 
     buildah config --volume /etc/dhcp/dhcpd.conf $CONTAINER
