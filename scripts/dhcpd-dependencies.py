@@ -44,7 +44,8 @@ def parse_args():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--verbose', '-v', type=bool, default=False)
+    parser.add_argument('--verbose', '-v', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--debug', '-d', action=argparse.BooleanOptionalAction)
     # parser.add_argument('--check', '-v', type=bool, default=False)
 
     # operational parameters
@@ -74,6 +75,14 @@ class DynamicExecutable(object):
         self._package = package
         self._dependancies = []
         self._libraries = None
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def path(self):
+        return self._path
 
     @staticmethod
     def find(root_dir, package=None):
@@ -116,17 +125,29 @@ class DynamicExecutable(object):
         And the normalized path of the executable file,
         Get the list of shared libraries.
         """
-
+	#       linux-vdso.so.1 (0x0000ffff9e2ac000)
+        # 	libc.so.6 => /lib64/libc.so.6 (0x0000ffff9db40000)
+	#       /lib/ld-linux-aarch64.so.1 (0x0000ffff9e270000)
+        ldd_re = re.compile(r"^(\s*\S+\s=>)?\s+(/\S+)\s+\S+$")
+        
         if self._libraries is None and root_dir is not None:
             #dlink_root = os.path.join(root_dir, self._package, self._path)
             dlink_root = f"{ root_dir }/{ self._package }{ self._path }"
             response = subprocess.check_output(['ldd', dlink_root]).decode('utf-8').split("\n")
 
-            # remove leading tabs
-            lines = [line.strip().split() for line in response]
+            libpaths = []
+            for line in response:
+                match = ldd_re.match(line)
+                if match is not None:
+                    libpath = match.group(2)
+                    libpaths.append(libpath)
 
-            libpaths = [lib[2] for lib in lines if len(lib) > 2]
+             # remove leading tabs            
+#            lines = [line.strip().split() for line in response]
+#            libpaths = [lib[2] for lib in lines if len(lib) > 2]
+
             libraries = [DynamicLibrary(path.split('/')[-1], path=path) for path in libpaths]
+
             self._libraries = libraries
             
         return self._libraries
@@ -139,7 +160,7 @@ class DynamicExecutable(object):
             lib.package().releases()
 
 
-    def model(self, package_dir, unpack_dir, model_dir, follow_symlinks=False):
+    def model(self, package_dir, unpack_dir, model_dir, follow_symlinks=False, verbose=False):
         """
         Build a model file tree for a container image for the daemon.
 
@@ -155,6 +176,11 @@ class DynamicExecutable(object):
         
         dst_root = f"{ model_dir }/{self._name}"
         os.makedirs(dst_root, exist_ok=True)
+        os.makedirs(f"{dst_root}/usr/lib", exist_ok=True)
+        os.symlink("usr/lib", f"{dst_root}/lib", target_is_directory=True) 
+        os.makedirs(f"{dst_root}/usr/lib64", exist_ok=True)
+        os.symlink("usr/lib64", f"{dst_root}/lib64", target_is_directory=True) 
+        
 
         pkg = Package(self._package)
         # Get the daemon binary first
@@ -503,18 +529,29 @@ if __name__ == "__main__":
     opts = parse_args()
 
     # Identify and pull a copy of the service deaemon package
+    opts.verbose and print(f"Processings package: {opts.package}")
     pkg = Package(opts.package)
+
+    opts.verbose and print(f"Retrieving package: {opts.package}")
     pkg.retrieve(opts.package_dir)
+
+    opts.verbose and print(f"Unpacking package: {opts.package}")
     pkg.unpack(opts.package_dir, opts.unpack_dir)
 
     # Find the executable files in the package file tree
+    opts.verbose and print(f"Finding exe binaries in : {opts.package}")
     executables = pkg.executables(opts.unpack_dir)
+    opts.verbose and print(f"{list(executables.keys())}")
 
     # Select the binary to package
+    opts.verbose and print(f"Processing exe: {opts.daemon_file}")
     daemon_exe = executables[opts.daemon_file]
 
     # Find all shared libraries and their packages
+    opts.verbose and print(f"Processing shared libraries for {daemon_exe.name}")
     daemon_exe.resolve(opts.unpack_dir)
+    # print the list of shared libraries
 
     # Create a file tree for the daemon container
-    daemon_exe.model(opts.package_dir, opts.unpack_dir, opts.model_dir)
+    opts.verbose and print(f"Creating model for {daemon_exe.name}")
+    daemon_exe.model(opts.package_dir, opts.unpack_dir, opts.model_dir, verbose=opts.verbose)

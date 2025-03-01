@@ -28,7 +28,8 @@ function main() {
     MOUNTPOINT=$(buildah mount $CONTAINER)
 
     (cd ${ROOT} ; find * -type d) | xargs -I{} mkdir -p ${MOUNTPOINT}/${ROOT}/{}
-    cp -r $ROOT/* ${MOUNTPOINT}
+    
+    # cp -r $ROOT/* ${MOUNTPOINT}
 
     mkdir -p ${MOUNTPOINT}/etc/dhcp
     mkdir -p ${MOUNTPOINT}/var/lib/dhcpd
@@ -36,8 +37,6 @@ function main() {
     ln -s usr/lib ${MOUNTPOINT}/lib
     ln -s usr/lib64 ${MOUNTPOINT}/lib64
 
-    
-    
     buildah unmount $CONTAINER
 
     # add a volume to include the configuration file
@@ -56,6 +55,7 @@ function main() {
 
     buildah tag localhost/dhcpd quay.io/markllama/dhcpd
 
+    #podman rm dhcpd
 }
 
 function parse_args() {
