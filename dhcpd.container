@@ -5,6 +5,7 @@ After=network-online.target
 [Container]
 Image=quay.io/markllama/dhcpd:latest
 
+Network=host
 
 # Open listening ports
 # bootps
@@ -16,8 +17,8 @@ PublishPort=68:68/udp
 PublishPort=68:68/tcp
 
 # Mount the dhcp config dir into the container workingdir
-Volume=/etc/dhcp/dhcpd.conf:/etc/dhcp/dhcpd.conf
-Volume=/var/lib/dhcpd/:/var/lib/dhcpd/
+Volume=/etc/dhcp/dhcpd.conf:/etc/dhcp/dhcpd.conf:ro,Z
+Volume=/var/lib/dhcpd/:/var/lib/dhcpd/:rw,Z
 
 [Install]
 # Enable in multi-user boot
@@ -26,6 +27,6 @@ WantedBy=multi-user.target default.target
 #  podman run --detach --name dhcpd \
 #    --privileged  \
 #    --network host \
-#    --volume /etc/dhcp/dhcpd.conf:/etc/dhcp/dhcpd.conf:rw,Z \
+#    --volume /etc/dhcp/dhcpd.conf:/etc/dhcp/dhcpd.conf:ro,Z \
 #    --volume /var/lib/dhcpd/:/var/lib/dhcpd/:rw,Z \
 #    quay.io/markllama/dhcpd

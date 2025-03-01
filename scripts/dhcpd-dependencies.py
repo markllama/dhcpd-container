@@ -203,7 +203,7 @@ class DynamicExecutable(object):
         # - mkdir
         # - copy
         for lib in self.libraries():
-            verbose and print("preparing library: {lib.name}")
+            verbose and print(f"preparing library: {lib.name}")
             lib._package.retrieve(package_dir)
             lib._package.unpack(package_dir, unpack_dir)
 
