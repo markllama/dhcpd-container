@@ -39,7 +39,7 @@ function main() {
     # add a volume to include the configuration file
     # Leave the files in the default locations 
     buildah config --volume /etc/dhcp/dhcpd.conf $CONTAINER
-    buildah config --volume /var/lib/dhcpd/dhcp.leases $CONTAINER
+    buildah config --volume /var/lib/dhcpd $CONTAINER
 
     # # open ports for listening
     buildah config --port 68/udp --port 69/udp ${CONTAINER}

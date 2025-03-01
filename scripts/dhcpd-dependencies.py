@@ -175,22 +175,25 @@ class DynamicExecutable(object):
         """
         
         dst_root = f"{ model_dir }/{self._name}"
+
+        verbose and print(f"initializing model root: {dst_root}")
+        
         os.makedirs(dst_root, exist_ok=True)
         os.makedirs(f"{dst_root}/usr/lib", exist_ok=True)
         os.symlink("usr/lib", f"{dst_root}/lib", target_is_directory=True) 
         os.makedirs(f"{dst_root}/usr/lib64", exist_ok=True)
         os.symlink("usr/lib64", f"{dst_root}/lib64", target_is_directory=True) 
-        
 
         pkg = Package(self._package)
+        verbose and print(f"preparing package: {self._package}")
         # Get the daemon binary first
         pkg.retrieve(package_dir)
         pkg.unpack(package_dir, unpack_dir)
 
         src = f"{unpack_dir}/{pkg._name}/{self._path}"
         dst = f"{dst_root}/{self._path}"
-
         # copy the binary
+        verbose and print(f"placing exe file: {src} => {dst}")
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy(src, dst, follow_symlinks=follow_symlinks)
 
@@ -200,6 +203,7 @@ class DynamicExecutable(object):
         # - mkdir
         # - copy
         for lib in self.libraries():
+            verbose and print("preparing library: {lib.name}")
             lib._package.retrieve(package_dir)
             lib._package.unpack(package_dir, unpack_dir)
 
@@ -208,6 +212,7 @@ class DynamicExecutable(object):
             filename = lib._package._releases[0]._filename
             src = f"{unpack_dir}/{lib._package.name}{filename}"
             dst = f"{dst_root}{filename}"
+            verbose and print(f"placing lib file: {src} => {dst}")
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.copy(src, dst, follow_symlinks=False)
 
@@ -217,6 +222,7 @@ class DynamicExecutable(object):
                 link_value = os.readlink(src)
                 src=f"{os.path.dirname(src)}/{link_value}"
                 dst=f"{os.path.dirname(dst)}/{link_value}"
+                verbose and print(f"placing link target: {src} => {dst}")
                 shutil.copy(src, dst, follow_symlinks=follow_symlinks)
 
 

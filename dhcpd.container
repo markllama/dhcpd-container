@@ -3,7 +3,8 @@ Description=ISC DCHP daemon Service Container
 After=network-online.target
 
 [Container]
-Image=quay.io/markllama/dhcpd-fedora:latest
+Image=quay.io/markllama/dhcpd:latest
+
 
 # Open listening ports
 # bootps
@@ -16,7 +17,7 @@ PublishPort=68:68/tcp
 
 # Mount the dhcp config dir into the container workingdir
 Volume=/etc/dhcp/dhcpd.conf:/etc/dhcp/dhcpd.conf
-Volume=/var/lib/dhcpd/dhcp.leases:/var/lib/dhcpd/dhcp.leases
+Volume=/var/lib/dhcpd/:/var/lib/dhcpd/
 
 [Install]
 # Enable in multi-user boot
@@ -26,5 +27,5 @@ WantedBy=multi-user.target default.target
 #    --privileged  \
 #    --network host \
 #    --volume /etc/dhcp/dhcpd.conf:/etc/dhcp/dhcpd.conf:rw,Z \
-#    --volume /var/lib/dhcpd/dhcp.leases:/var/lib/dhcpd/dhcp.leases:rw,Z \
-#    quay.io/markllama/dhcpd-fedora
+#    --volume /var/lib/dhcpd/:/var/lib/dhcpd/:rw,Z \
+#    quay.io/markllama/dhcpd
