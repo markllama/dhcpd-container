@@ -41,7 +41,10 @@ function main() {
     buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $CONTAINER
 
     # # Save the container to an image
-    buildah commit --squash $CONTAINER
+    buildah commit --squash $CONTAINER $NAME
+
+    buildah tag localhost/dhcpd quay.io/markllama/dhcpd
+
 }
 
 function parse_args() {
