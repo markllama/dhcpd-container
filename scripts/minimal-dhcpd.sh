@@ -29,7 +29,7 @@ function main() {
 
     (cd ${ROOT} ; find * -type d) | xargs -I{} mkdir -p ${MOUNTPOINT}/${ROOT}/{}
     
-    # cp -r $ROOT/* ${MOUNTPOINT}
+    cp -r $ROOT/* ${MOUNTPOINT}
 
     mkdir -p ${MOUNTPOINT}/etc/dhcp
     mkdir -p ${MOUNTPOINT}/var/lib/dhcpd
