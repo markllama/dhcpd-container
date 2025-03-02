@@ -48,6 +48,85 @@ The current container cannot serve IPv6 addresses
 
 === Container Unit File
 
+Containerized services are defined for https://systemd.io/[`systemd`]
+by a
+https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html[podman
+systemd unit] file. This file provides the parameters needed to start
+and stop the container and to manage it like any other service.
+
+On distributions based on Fedora, podman and systemd-podman are
+installed by default. On Debian based systems after version 12
+(bookworm) the `systemd-container` package may need to be installed to
+enable systemd containers.
+
+To add and enable a new systemd container service, place the unit file
+in `/etc/containers/systemd` and reload the services:
+
+   sudo cp `dhcpd.container` /etc/containers/systemd
+   sudo systemctl daemon-reload
+   sudo systemctl status dhcpd
+
+.systemctl status dhcpd
+----
+systemctl status dhcpd
+× dhcpd.service - ISC DCHP daemon Service Container
+     Loaded: loaded (/etc/containers/systemd/dhcpd.container; generated)
+    Drop-In: /usr/lib/systemd/system/service.d
+             └─10-timeout-abort.conf, 50-keep-warm.conf
+     Active: failed (Result: exit-code) since Sun 2025-03-02 15:28:30 UTC; 3s ago
+   Duration: 1month 1w 6d 7h 8min 10.649s
+ Invocation: 0b5994fab3354ba1a97fed761766129f
+    Process: 1340 ExecStart=/usr/bin/podman run --name systemd-dhcpd --cidfile=/run/dhcpd.cid --replace >
+    Process: 2018 ExecStop=/usr/bin/podman rm -v -f -i --cidfile=/run/dhcpd.cid (code=exited, status=0/S>
+    Process: 2044 ExecStopPost=/usr/bin/podman rm -v -f -i --cidfile=/run/dhcpd.cid (code=exited, status>
+   Main PID: 1340 (code=exited, status=137)
+   Mem peak: 77.2M
+        CPU: 1.253s
+...
+----
+
+
+
+.`dhcpd.container`
+[source,ini]
+----
+[Unit]
+Description=ISC DCHP daemon Service Container
+After=network-online.target
+
+[Container]
+Image=quay.io/markllama/dhcpd:latest
+#Image=quay.io/markllama/dhcpd-fedora:latest
+
+# This shouldn't be needed except for reading /etc/dhcp/dhcpd.conf
+# Could move it to /opt/dhcp/dhcpd.conf
+PodmanArgs=--privileged
+Network=host
+
+# Open listening ports
+# bootps
+PublishPort=67:67/udp
+PublishPort=67:67/tcp
+
+# bootpc
+PublishPort=68:68/udp
+PublishPort=68:68/tcp
+
+# Mount the dhcp config dir into the container workingdir
+Volume=/etc/dhcp/dhcpd.conf:/etc/dhcp/dhcpd.conf:ro,Z
+Volume=/var/lib/dhcpd/:/var/lib/dhcpd/:rw,Z
+
+[Install]
+# Enable in multi-user boot
+WantedBy=multi-user.target default.target
+
+#  podman run --detach --name dhcpd \
+#    --privileged  \
+#    --network host \
+#    --volume /etc/dhcp/dhcpd.conf:/etc/dhcp/dhcpd.conf:ro,Z \
+#    --volume /var/lib/dhcpd/:/var/lib/dhcpd/:rw,Z \
+#    quay.io/markllama/dhcpd
+----
 
 == Container Creation - Buildah
 
@@ -70,7 +149,7 @@ base image. Then the process is just to install the distro
 command. If the resulting instance is well-behaved, it can be used as
 the image for a *quadlet*, a systemd service run from a
 container. This is the conventional service container image creation
-method. At the end, the container definition will contain all of the
+method. At the end, the container definition wihttps://www.amazon.com/ll contain all of the
 elements needed to run the service.
 
 == Scratch Image
@@ -118,6 +197,8 @@ operation.
 
 * https://podman.io[Podman] +
   Podman software container management system
+
+* https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html[Podman `systemd` unit files]
 
 * https://opencontainers.org/[Open Container Initiative] +
   The standards body that defines containerized software compliance requirements.
