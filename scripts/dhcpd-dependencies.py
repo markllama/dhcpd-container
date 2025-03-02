@@ -46,6 +46,11 @@ def parse_args():
 
     parser.add_argument('--verbose', '-v', action=argparse.BooleanOptionalAction)
     parser.add_argument('--debug', '-d', action=argparse.BooleanOptionalAction)
+    
+    parser.add_argument('--manifest', action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument('--resolve', action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument('--model', action=argparse.BooleanOptionalAction, default=True)
+    
     # parser.add_argument('--check', '-v', type=bool, default=False)
 
     # operational parameters
@@ -152,12 +157,13 @@ class DynamicExecutable(object):
             
         return self._libraries
 
-    def resolve(self, root_dir):
+    def resolve(self, root_dir, verbose=False):
         """
         Find all of the libraries and their packages
         """
         for lib in self.libraries(root_dir):
-            lib.package().releases()
+            verbose and print(f"finding releases for lib: {lib.name}")
+            lib.package.releases()
 
 
     def model(self, package_dir, unpack_dir, model_dir, follow_symlinks=False, verbose=False):
@@ -225,6 +231,29 @@ class DynamicExecutable(object):
                 verbose and print(f"placing link target: {src} => {dst}")
                 shutil.copy(src, dst, follow_symlinks=follow_symlinks)
 
+    def manifest(self):
+        """
+        Write a JSON manifest of the files and packages included in the container
+        """
+
+        # executable:
+        #   package
+        #
+        #   libraries
+        manifest = {
+            'name': self.name,
+            'path': self.path,
+            'package': self._package,
+            'libraries': [
+                {
+                    'path': lib.path,
+                    'package': lib.package.latest.name,
+                    'version': lib.package.latest.version
+                }
+                for lib in self._libraries]
+        }
+
+        return manifest
 
 class DynamicLibrary(object):
     
@@ -238,7 +267,15 @@ class DynamicLibrary(object):
         self._sources = None
 #        self._current = None
 
+    @property
+    def name(self):
+        return self._name
 
+    @property
+    def path(self):
+        return self._path
+
+    @property
     def package(self, path=None):
         """
         Determine what package(s) provide this library
@@ -276,6 +313,13 @@ class Package():
             if self._filename is not None:
                 self.releases()
         return self._name
+
+    @property
+    def latest(self):
+        """
+        Return the package name and version of the latest release
+        """
+        return self._releases[0]
         
     @property
     def url(self):
@@ -554,10 +598,14 @@ if __name__ == "__main__":
     daemon_exe = executables[opts.daemon_file]
 
     # Find all shared libraries and their packages
-    opts.verbose and print(f"Processing shared libraries for {daemon_exe.name}")
-    daemon_exe.resolve(opts.unpack_dir)
-    # print the list of shared libraries
+    if opts.resolve:
+        opts.verbose and print(f"Processing shared libraries for {daemon_exe.name}")
+        daemon_exe.resolve(opts.unpack_dir, verbose=opts.verbose)
 
     # Create a file tree for the daemon container
-    opts.verbose and print(f"Creating model for {daemon_exe.name}")
-    daemon_exe.model(opts.package_dir, opts.unpack_dir, opts.model_dir, verbose=opts.verbose)
+    if opts.model:
+        opts.verbose and print(f"Creating model for {daemon_exe.name}")
+        daemon_exe.model(opts.package_dir, opts.unpack_dir, opts.model_dir, verbose=opts.verbose)
+
+    # Create and print the package manifest
+    opts.manifest and print(yaml.dump(daemon_exe.manifest()))
