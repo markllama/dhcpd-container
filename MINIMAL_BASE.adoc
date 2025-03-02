@@ -1,0 +1,7 @@
+// Documenting a container image to run ISC DHCP
+//
+//
+:toc:
+:toc-placement!:
+= DHCP Service Container From Minimal Base
+

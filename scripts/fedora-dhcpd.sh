@@ -29,6 +29,9 @@ function main() {
     # Define the startup command
     buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $CONTAINER
 
+    buildah config --author "Mark Lamourine <markllama@gmail.com>" $CONTAINER
+    buildah config --created-by "Mark Lamourine <markllama@gmail.com>" $CONTAINER
+
     # Save the container to an image
     buildah commit --squash $CONTAINER dhcpd-fedora
 }

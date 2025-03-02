@@ -10,30 +10,36 @@
 # Stop on any error 
 set -o errexit
 
-OPT_SPEC='n:r:'
+OPT_SPEC='a:b:s:r:'
 
-DEFAULT_NAME="dhcpd"
+DEFAULT_SERVICE="dhcpd"
 DEFAULT_ROOT="minimize/model/dhcpd"
+DEFAULT_AUTHOR="Mark Lamourine <markllama@gmail.com>"
+DEFAULT_BUILDER="Mark Lamourine <markllama@gmail.com>"
 
-: NAME="${NAME:=${DEFAULT_NAME}}"
+: SERVICE="${SERVICE:=${DEFAULT_SERVICE}}"
 : ROOT="${ROOT:=${DEFAULT_ROOT}}"
+: AUTHOR="${AUTHOR:=${DEFAULT_AUTHOR}"
+: BUILDER="${BUILDER:=${DEFAULT_BUILDER}"
 
 function main() {
 
     parse_args
     
     # Create a container
-    CONTAINER=$(buildah from --name $NAME scratch)
-    
+    CONTAINER=$(buildah from --name $SERVICE scratch)
+
+    # Access the container file space
     MOUNTPOINT=$(buildah mount $CONTAINER)
 
+    # Create the model directory tree
     (cd ${ROOT} ; find * -type d) | xargs -I{} mkdir -p ${MOUNTPOINT}/${ROOT}/{}
-    
     cp -r $ROOT/* ${MOUNTPOINT}
-
+    # Create system symlinks
     mkdir -p ${MOUNTPOINT}/etc/dhcp
     mkdir -p ${MOUNTPOINT}/var/lib/dhcpd
 
+    # Release the container file space
     buildah unmount $CONTAINER
 
     # add a volume to include the configuration file
@@ -45,15 +51,15 @@ function main() {
     buildah config --port 68/udp --port 69/udp ${CONTAINER}
 
     # # Define the startup command
-    buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $CONTAINER
+    buildah config --cmd "/usr/sbin/dhcpd --detach --no-pid" $CONTAINER
 
-    buildah config --author "Mark Lamourine <markllama@gmail.com>" $CONTAINER
-    buildah config --created-by "Mark Lamourine <markllama@gmail.com>" $CONTAINER
+    buildah config --author "${AUTHOR}" $CONTAINER
+    buildah config --created-by "${BUILDER}" $CONTAINER
     buildah config --annotation description="ISC DHCPD 4.4.3" $CONTAINER
     buildah config --annotation license="MPL-2.0" $CONTAINER
 
     # # Save the container to an image
-    buildah commit --squash $CONTAINER $NAME
+    buildah commit --squash $CONTAINER $SERVICE
 
     buildah tag localhost/dhcpd quay.io/markllama/dhcpd
 
@@ -65,8 +71,14 @@ function parse_args() {
     
     while getopts "${OPT_SPEC}" opt; do
 	case "${opt}" in
-	    n)
-		NAME=${OPTARG}
+	    a)
+		AUTHOR=${OPTARG}
+		;;
+	    b)
+		BUILDER=${BUILDER}
+		;;
+	    s)
+		SERVICE=${OPTARG}
 		;;
 	    r)
 		ROOT=${OPTARG}
@@ -75,7 +87,5 @@ function parse_args() {
     done
 }
 
-#
-#
-#
+# == Call main after all functions are defined
 main $*

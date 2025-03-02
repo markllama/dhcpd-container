@@ -85,7 +85,9 @@ systemctl status dhcpd
 ...
 ----
 
-
+The example below defines the `dhcpd` service shown above. It pulls an
+image from a well-known container registry and executes it, applying
+the configuration files mounted from the system file space.
 
 .link:./dhcpd.container[`dhcpd.container`]
 [source,ini]
@@ -152,6 +154,15 @@ container. This is the conventional service container image creation
 method. At the end, the container definition will contain all of the
 elements needed to run the service.
 
+The link:scripts/fedora-dhcpd.sh[`fedora-dhcpd.sh` script creates a
+new container image from the Fedora base image and installs the
+`dhcpd-server` package. The image is named `dhcpd-fedora`. That image
+can be run using the container file above. This image is 170MB because
+it starts from a base that contains a lot of Linux boilerplate, most
+of which is needed only for the package installation process.
+
+This process is treated in more detail in link:[FEDORA_BASE.adoc].
+
 == Scratch Image
 
 At this point we have an image that runs the service as desired. What
@@ -165,6 +176,12 @@ required. With those techniques it is possible to start at the
 critical binaries, to interrogate them for their requirements and to
 work your way up the chain until the service works and every file can
 be confirmed to be critical to operation.
+
+This process is more involved, as it requires examining the binary,
+locating the shared library files and packages and then extracting and
+placing them within the container file tree.
+
+This process is treated in detail in link:[MINIMAL_BASE.adoc].
 
 == Future
 
@@ -198,7 +215,11 @@ operation.
 * https://podman.io[Podman] +
   Podman software container management system
 
-* https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html[Podman `systemd` unit files]
+* https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html[Podman `systemd` unit files] +
+  `systemd` services using software containers
 
 * https://opencontainers.org/[Open Container Initiative] +
   The standards body that defines containerized software compliance requirements.
+
+* https://systemd.io[`systemd`] +
+  A common Linux init process system
