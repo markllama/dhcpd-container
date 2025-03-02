@@ -6,6 +6,9 @@ After=network-online.target
 Image=quay.io/markllama/dhcpd:latest
 #Image=quay.io/markllama/dhcpd-fedora:latest
 
+# This shouldn't be needed except for reading /etc/dhcp/dhcpd.conf
+# Could move it to /opt/etc/dhcp/dhcpd.conf
+PodmanArgs=--privileged
 Network=host
 
 # Open listening ports
