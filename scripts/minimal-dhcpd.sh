@@ -47,10 +47,10 @@ function main() {
     # # Define the startup command
     buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $CONTAINER
 
-    buildah config --author "Mark Lamourine <markllama@gmail.com>"
-    buildah config --created-by "Mark Lamourine <markllama@gmail.com>"
-    buildah config --annotation description="ISC DHCPD 4.4.3"
-    buildah config --annotation license="MPL-2.0"
+    buildah config --author "Mark Lamourine <markllama@gmail.com>" $CONTAINER
+    buildah config --created-by "Mark Lamourine <markllama@gmail.com>" $CONTAINER
+    buildah config --annotation description="ISC DHCPD 4.4.3" $CONTAINER
+    buildah config --annotation license="MPL-2.0" $CONTAINER
 
     # # Save the container to an image
     buildah commit --squash $CONTAINER $NAME
