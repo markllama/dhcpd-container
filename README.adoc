@@ -149,7 +149,7 @@ base image. Then the process is just to install the distro
 command. If the resulting instance is well-behaved, it can be used as
 the image for a *quadlet*, a systemd service run from a
 container. This is the conventional service container image creation
-method. At the end, the container definition wihttps://www.amazon.com/ll contain all of the
+method. At the end, the container definition will contain all of the
 elements needed to run the service.
 
 == Scratch Image
