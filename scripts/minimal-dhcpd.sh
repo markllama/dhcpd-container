@@ -49,8 +49,9 @@ function main() {
 
     buildah config --author "Mark Lamourine <markllama@gmail.com>"
     buildah config --created-by "Mark Lamourine <markllama@gmail.com>"
+    buildah config --annotation description="ISC DHCPD 4.4.3"
     buildah config --annotation license="MPL-2.0"
-    
+
     # # Save the container to an image
     buildah commit --squash $CONTAINER $NAME
 
