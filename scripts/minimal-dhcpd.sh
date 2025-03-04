@@ -10,60 +10,85 @@
 # Stop on any error 
 set -o errexit
 
-OPT_SPEC='a:b:s:r:'
+SCRIPT=$0
+
+OPT_SPEC='a:b:c:s:r:'
 
 DEFAULT_SERVICE="dhcpd"
-DEFAULT_ROOT="minimize/model/dhcpd"
+DEFAULT_SOURCE_ROOT="workdir/model"
 DEFAULT_AUTHOR="Mark Lamourine <markllama@gmail.com>"
 DEFAULT_BUILDER="Mark Lamourine <markllama@gmail.com>"
 
 : SERVICE="${SERVICE:=${DEFAULT_SERVICE}}"
-: ROOT="${ROOT:=${DEFAULT_ROOT}}"
+: SOURCE_ROOT="${SOURCE_ROOT:=${DEFAULT_SOURCE_ROOT}}"
 : AUTHOR="${AUTHOR:=${DEFAULT_AUTHOR}}"
 : BUILDER="${BUILDER:=${DEFAULT_BUILDER}}"
 
 function main() {
 
-    parse_args
-    
-    # Create a container
-    CONTAINER=$(buildah from --name $SERVICE scratch)
+    parse_args $*
 
+    if [ -z "${BUILDAH_ISOLATION}" -o -z "${CONTAINER_ID}" ] ; then
+	# Create a container
+	local CONTAINER=$(buildah from --name $SERVICE scratch)
+
+	if [ -z "${BUILDAH_ISOLATION}" ] ; then
+	    # Run the file copy in an unshare environement
+	    buildah unshare bash $0 -c ${CONTAINER} -s ${SOURCE_ROOT}
+	else
+	    # Aldready in an unshare environment
+	    copy_model_tree ${SOURCE_ROOT} ${CONTAINER}
+	fi
+	
+	# add a volume to include the configuration file
+	# Leave the files in the default locations 
+	buildah config --volume /etc/dhcp/dhcpd.conf $CONTAINER
+	buildah config --volume /var/lib/dhcpd $CONTAINER
+
+	# # open ports for listening
+	buildah config --port 68/udp --port 69/udp ${CONTAINER}
+
+	# # Define the startup command
+	buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $CONTAINER
+
+	buildah config --author "${AUTHOR}" $CONTAINER
+	buildah config --created-by "${BUILDER}" $CONTAINER
+	buildah config --annotation description="ISC DHCPD 4.4.3" $CONTAINER
+	buildah config --annotation license="MPL-2.0" $CONTAINER
+
+	# # Save the container to an image
+	buildah commit --squash $CONTAINER $SERVICE
+
+	buildah tag localhost/dhcpd quay.io/markllama/dhcpd
+
+	podman rm ${SERVICE}
+
+    else
+	# Only the copy needs to happen in an unshare environment
+	copy_model_tree ${SOURCE_ROOT} ${CONTAINER_ID}
+    fi
+}
+
+function copy_model_tree() {
+    local source_root=$1
+    local container_id=$2
+    
     # Access the container file space
-    MOUNTPOINT=$(buildah mount $CONTAINER)
+    local mountpoint=$(buildah mount $container_id)
 
     # Create the model directory tree
-    (cd ${ROOT} ; find * -type d) | xargs -I{} mkdir -p ${MOUNTPOINT}/${ROOT}/{}
-    cp -r $ROOT/* ${MOUNTPOINT}
-    # Create system symlinks
-    mkdir -p ${MOUNTPOINT}/etc/dhcp
-    mkdir -p ${MOUNTPOINT}/var/lib/dhcpd
+    (cd ${source_root} ; find * -type d) | xargs -I{} mkdir -p ${mountpoint}/{}
+    [ -z "${DEBUG}" ] || ls -R ${mountpoint}
+    cp -r ${source_root}/* ${mountpoint}
+    
+    # Create volume mount points
+    mkdir -p ${mountpoint}/etc/dhcp
+    mkdir -p ${mountpoint}/var/lib/dhcpd
+
+    [ -z ${DEBUG} ] || ls -R ${mountpoint}
 
     # Release the container file space
-    buildah unmount $CONTAINER
-
-    # add a volume to include the configuration file
-    # Leave the files in the default locations 
-    buildah config --volume /etc/dhcp/dhcpd.conf $CONTAINER
-    buildah config --volume /var/lib/dhcpd $CONTAINER
-
-    # # open ports for listening
-    buildah config --port 68/udp --port 69/udp ${CONTAINER}
-
-    # # Define the startup command
-    buildah config --cmd "/usr/sbin/dhcpd --detach --no-pid" $CONTAINER
-
-    buildah config --author "${AUTHOR}" $CONTAINER
-    buildah config --created-by "${BUILDER}" $CONTAINER
-    buildah config --annotation description="ISC DHCPD 4.4.3" $CONTAINER
-    buildah config --annotation license="MPL-2.0" $CONTAINER
-
-    # # Save the container to an image
-    buildah commit --squash $CONTAINER $SERVICE
-
-    buildah tag localhost/dhcpd quay.io/markllama/dhcpd
-
-    #podman rm dhcpd
+    buildah unmount ${container_id}
 }
 
 function parse_args() {
@@ -76,6 +101,9 @@ function parse_args() {
 		;;
 	    b)
 		BUILDER=${OPTARG}
+		;;
+	    c)
+		CONTAINER_ID=${OPTARG}
 		;;
 	    s)
 		SERVICE=${OPTARG}
