@@ -25,7 +25,7 @@ function main() {
     # parse_args
     
     # identify daemon package
-    local pkg_fullname=$(find_package $BINARY ${ARCH})
+    local pkg_fullname=$(find_provider_package $BINARY ${ARCH})
     [ -z "${VERBOSE}" ] || echo "package fullname: ${pkg_fullname}" >&2
     local pkg_spec=($(parse_package_name ${pkg_fullname}))
     local pkg_name=${pkg_spec[0]}
@@ -81,7 +81,7 @@ function main() {
     # all files from 
 
     ## for each library
-    echo "library records: ${library_records[@]}" >&2
+    [ -z "${DEBUG}" ] || echo "library records: ${library_records[@]}" >&2
     for library_file in "${!library_records[@]}" ; do
      	library_name=${library_records[${library_file}]}
      	[ -z "${DEBUG}" ] || echo "${library_file} : ${library_name}"
@@ -92,33 +92,43 @@ function main() {
     done
 }
 
+# =====================================================================
+# Functions to get and examine packages for libraries
+# =====================================================================
 
 function parse_package_name() {
-    local FULL_NAME=$1
-    local ARCH=$(uname -m)
-    [[ $FULL_NAME =~ (.+)[-:]([^-]+)-(.+)\.[^.]+\.${ARCH}$ ]]
+    local full_name=$1
 
-    local NAME=${BASH_REMATCH[1]}
-    local VERS=${BASH_REMATCH[2]}
-    local REL=${BASH_REMATCH[3]}
+    # matches package-name-1:1.2.3-4-dist-arch
+    #         package-name-1.2.3-4-dist-arch
+    [[ $full_name =~ (.+)[-:]([^-]+)-(.+)\.[^.]+\.${ARCH}$ ]]
 
-    [[ $NAME =~ ^(.+)(-([[:digit:]]+))$ ]]
+    # TODO test for failed match - ML 20250304
+    local name=${BASH_REMATCH[1]}
+    local version=${BASH_REMATCH[2]}
+    local release=${BASH_REMATCH[3]}
+
+    # If the name includes a tag number [-0] remove it.
+    [[ ${name} =~ ^(.+)(-([[:digit:]]+))$ ]]
     if [ ${#BASH_REMATCH[@]} -ne 0 ] ; then
-	NAME=${BASH_REMATCH[1]}
+	name=${BASH_REMATCH[1]}
     fi
-    # check first for optionl (-([[:digit:]]+))?
-    echo ${NAME} ${VERS} ${REL}
+    
+    echo ${name} ${version} ${release}
 }
 
 #
 # Get information about a package
 #
-function find_package() {
+function find_provider_package() {
     local file_name=$1
 
-    dnf --quiet provides ${file_name}  /usr${file_name} 2>/dev/null | head -1 | awk '{print $1}'
+    dnf --quiet provides ${file_name} 2>/dev/null | head -1 | awk '{print $1}'
 }
 
+#
+# Download a package into the package directory
+#
 function pull_package() {
     local full_name=$1
     local pkg_dir=$2
@@ -128,30 +138,40 @@ function pull_package() {
 
     # create the package directory if needed
     [ -d ${pkg_dir} ] || mkdir -p ${pkg_dir}
-    dnf --quiet download --arch ${arch} --destdir ${pkg_dir} ${full_name}
+    dnf --quiet download --arch ${arch} --destdir ${pkg_dir} ${full_name} 2>/dev/null
 }
 
 #
 # Unpack a package into a working directory
 #
 function unpack_package() {
-    local PKG_NAME=$1
-    local PKG_ROOT=$2
-    local UNPACK_ROOT=$3
+    local package_name=$1
+    local package_root=$2
+    local unpack_root=$3
 
-    local PKG_PATH=$(ls ${PKG_ROOT}/${PKG_NAME}*.rpm)
-    local UNPACK_DIR=${UNPACK_ROOT}/${PKG_NAME}
+    local package_path=$(ls ${package_root}/${package_name}*.rpm)
+    local unpack_dir=${unpack_root}/${package_name}
 
-    [ -z "${DEBUG}" ] || echo "unpacking package info: ${PKG_PATH} into ${UNPACK_DIR}" >&2
+    [ -z "${DEBUG}" ] || echo "unpacking package info: ${package_path} into ${unpack_dir}" >&2
 
-    [ -d ${UNPACK_DIR} ] || mkdir -p ${UNPACK_DIR}
-    if [ $(ls $UNPACK_DIR | wc -l) -eq 0 ] ; then
-	rpm2cpio ${PKG_PATH} | cpio -idmu --quiet --directory ${UNPACK_DIR}
+    # Create the directory only if needed
+    [ -d ${unpack_dir} ] || mkdir -p ${unpack_dir}
+    
+    # unpack only if the directory is empty
+    if [ $(ls $unpack_dir | wc -l) -eq 0 ] ; then
+	rpm2cpio ${package_path} | cpio -idmu --quiet --directory ${unpack_dir}
     else
-	[ -z "${DEBUG}" ] || echo "already unpacked: ${PKG_NAME}"
+	[ -z "${DEBUG}" ] || echo "already unpacked: ${package_name}"
     fi
 }
 
+# ============================================================================
+# Functions for examining binaries and identifying shared library dependencies
+# ============================================================================
+
+#
+# Locate executables in a file tree
+# TODO: either make it actually find binaries or change the name: MAL 20250304
 function find_binaries() {
     local pkg_name=$1
     local unpack_root=$2
@@ -163,33 +183,38 @@ function find_binaries() {
     find ${unpack_dir} -type f -perm 755 | sed "s|${unpack_dir}||"
 }
 
-
+#
+# find shared libraries linked to the specified binary
+#
 function find_libraries() {
 
-    local PACKAGE=$1
-    local EXE_NAME=$2
+    local package=$1
+    local exe_name=$2
+    local unpack_root=$3
 
-    local UNPACK_DIR=${UNPACK_ROOT}/${PACKAGE}
-    local EXE_PATH=${UNPACK_DIR}${EXE_NAME}
+    local unpack_dir=${unpack_root}/${package}
+    local exe_path=${unpack_dir}${exe_name}
 
-    [ -z "${DEBUG}" ] || echo "discovering shared libraries on ${EXE_PATH}" >&2
+    [ -z "${DEBUG}" ] || echo "discovering shared libraries on ${exe_path}" >&2
 
-    # Only lines with filenames and only one file path
-    ldd ${EXE_PATH} | grep / | sed 's|^[^/]*/|/|;s/ .*$//' | sort -u
+    # Select Only lines with filenames and only one file path
+    ldd ${exe_path} | grep / | sed 's|^[^/]*/|/|;s/ .*$//' | sort -u
 }
 
+#
+# Almost like the function to find the provider of a binary, but look in two places
+#
 function find_library_package() {
     local library_file=$1
 
     [ -z "${DEBUG}" ] || echo "Finding package for library: ${library_file}" >&2
 
-    local PACKAGE=$(dnf  --quiet provides ${library_file}  /usr${library_file} 2>/dev/null | head -1 | awk '{print $1}')
-
-    echo ${PACKAGE}
+    # Some libraries are listed as /lib(64)? instead of /usr/lib(64)?
+    dnf --quiet provides ${library_file} /usr${library_file} 2>/dev/null | head -1 | awk '{print $1}'
 }
 
 # ==========================================================================
-#
+# Functions to build the model tree
 # ==========================================================================
 
 function initialize_model_tree() {
@@ -243,7 +268,7 @@ function copy_file() {
     cp $src_file $dst_dir
 }
 
-#
-#
-#
+# =======================================================================
+# Call MAIN after all functions are defined
+# =======================================================================
 main $*
