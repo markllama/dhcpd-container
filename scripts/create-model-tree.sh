@@ -8,7 +8,7 @@ ARCH=$(uname -m)
 : UNPACK_ROOT=${UNPACK_ROOT:=${WORKDIR_ROOT}/unpack}
 : MODEL_ROOT=${MODEL_ROOT:=${WORKDIR_ROOT}/model}
 
-OPT_SPEC="b:dm:p:u:w:v"
+OPT_SPEC="b:dfm:p:u:w:v"
 
 #function parse_args() {
 #    echo parsing args
@@ -31,7 +31,6 @@ function main() {
     local pkg_name=${pkg_spec[0]}
 
     # download daemon package
-    dnf --quiet makecache
     pull_package ${pkg_name} ${PACKAGE_DIR} ${ARCH}
 
     # unpack daemon package
@@ -129,7 +128,7 @@ function pull_package() {
 
     # create the package directory if needed
     [ -d ${pkg_dir} ] || mkdir -p ${pkg_dir}
-    dnf --quiet download --cacheonly --arch ${arch} --destdir ${pkg_dir} ${full_name}
+    dnf --quiet download --arch ${arch} --destdir ${pkg_dir} ${full_name}
 }
 
 #
@@ -207,7 +206,7 @@ function initialize_model_tree() {
 
 function symlink_target() {
     local file_path=$1
-    ls -l workdir/unpack/${file_path} | sed 's/.*-> //'
+    ls -l ${file_path} | sed 's/.*-> //'
 }
 
 function copy_file() {
