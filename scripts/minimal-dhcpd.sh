@@ -75,7 +75,7 @@ function parse_args() {
 		AUTHOR=${OPTARG}
 		;;
 	    b)
-		BUILDER=${BUILDER}
+		BUILDER=${OPTARG}
 		;;
 	    s)
 		SERVICE=${OPTARG}

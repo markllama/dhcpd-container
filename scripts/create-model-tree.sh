@@ -145,7 +145,7 @@ function unpack_package() {
     [ -z "${DEBUG}" ] || echo "unpacking package info: ${PKG_PATH} into ${UNPACK_DIR}" >&2
 
     [ -d ${UNPACK_DIR} ] || mkdir -p ${UNPACK_DIR}
-    if [ $(ls $UNPACKDIR | wc -l) -eq 0 ] ; then
+    if [ $(ls $UNPACK_DIR | wc -l) -eq 0 ] ; then
 	rpm2cpio ${PKG_PATH} | cpio -idmu --quiet --directory ${UNPACK_DIR}
     else
 	[ -z "${DEBUG}" ] || echo "already unpacked: ${PKG_NAME}"
@@ -246,4 +246,4 @@ function copy_file() {
 #
 #
 #
-main *
+main $*
