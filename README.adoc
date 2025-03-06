@@ -184,7 +184,7 @@ based on the Fedora 41 base image.  The `dhcpd` image is a minimal
 image create from scratch, containing only the `dhcpd` binary and the required shared
 libraries.
 
-See link:#container_images[Container Images]
+See link:#container-images[Container Images]
 
 == Limitations and Future Work
 
