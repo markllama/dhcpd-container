@@ -198,4 +198,4 @@ does not support any of these features of the ISC DHCP server
 * The `containers-common` package +
   The package that provides the container bindings for systemd services
 ** https://packages.debian.org/bullseye/golang-github-containers-common[Debian] `golang-github-containers-common`
-** https://packages.fedoraproject.org/pkgs/containers-common/containers-common/[Fedora] `contaiers-common`
+** https://packages.fedoraproject.org/pkgs/containers-common/containers-common/[Fedora] `containers-common`
