@@ -48,6 +48,27 @@ and service management.
 
 toc::[]
 
+== Container Images
+
+This repository contains scripts to create two different but
+functionally equivalent container images. Both are based on the Fedora
+`dhcp-server` package. This package provides the
+https://www.isc.org/dhcp/[ISC DHCP server] binary: `dhcpd`.
+
+The `dhcpd-fedora` image uses the
+https://quay.io/repository/fedora/fedora-minimal[registry.fedoraproject.org/fedora-minimal]
+base image. The `dhcpd` image is built from scratch.
+
+This document describes the usage of these images to provide a DHCP
+service on a host capable of running software containers from
+`systemd-containers`. To learn how the container images were built, see:
+
+* https://quay.io/repository/markllama/dhcpd-fedora[quay.io/markllama/dhcpd-fedora] +
+  ISC DHCP
+  link:FEDORA_BASE.adoc[Build Instructions]
+* https://quay.io/repository/markllama/dhcpd[quay.io/markllama/dhcpd] +
+  link:MINIMAL_BASE.adoc[Build Instructions]
+
 == Prerequisites
 
 The system must have the BOOTP and DHCP ports (68/UDP and 69/UDP) free
