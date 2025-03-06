@@ -64,9 +64,9 @@ service on a host capable of running software containers from
 `systemd-containers`. To learn how the container images were built, see:
 
 * https://quay.io/repository/markllama/dhcpd-fedora[quay.io/markllama/dhcpd-fedora] +
-  link:FEDORA_BASE.adoc[Build Instructions]
+  link:https://github.com/markllama/dhcpd-container/blob/main/FEDORA_BASE.adoc[Build Instructions]
 * https://quay.io/repository/markllama/dhcpd[quay.io/markllama/dhcpd] +
-  link:MINIMAL_BASE.adoc[Build Instructions]
+  link:https://github.com/markllama/dhcpd-container/blob/main/MINIMAL_BASE.adoc[Build Instructions]
 
 == Prerequisites
 
@@ -184,11 +184,7 @@ based on the Fedora 41 base image.  The `dhcpd` image is a minimal
 image create from scratch, containing only the `dhcpd` binary and the required shared
 libraries.
 
-* link:FEDORA_BASE.adoc[Fedora Base Image] +
-  Instructions for creating a DHCP service image from the Fedora base.
-  
-* link:MINIMAL_BASE.adoc[Minimal Image] +
-  Instructions for creating a minimal DHCP service image from scratch.
+See link:#container_images[Container Images]
 
 == Limitations and Future Work
 
