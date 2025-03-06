@@ -117,7 +117,7 @@ systemd] specification.
 The container file below pulls one of the public container images for
 the ISC DHCP server.
 
-.dhcpd.container
+.`dhcpd.container`
 [source,ini]
 ----
 [Unit]
