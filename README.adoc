@@ -64,9 +64,9 @@ service on a host capable of running software containers from
 `systemd-containers`. To learn how the container images were built, see:
 
 * https://quay.io/repository/markllama/dhcpd-fedora[quay.io/markllama/dhcpd-fedora] +
-  link:https://github.com/markllama/dhcpd-container/blob/main/FEDORA_BASE.adoc[Build Instructions]
+  link:FEDORA_BASE.adoc[Build Instructions]
 * https://quay.io/repository/markllama/dhcpd[quay.io/markllama/dhcpd] +
-  link:https://github.com/markllama/dhcpd-container/blob/main/MINIMAL_BASE.adoc[Build Instructions]
+  link:MINIMAL_BASE.adoc[Build Instructions]
 
 == Prerequisites
 
