@@ -101,7 +101,7 @@ On recent Red Hat and Fedora releases it is installed by default along
 with `podman`.  On Debian based systems you must install the package
 or one that depends on it, like the `podman` package.
 
-    # sudo apt update ; sudo apt install golang-github-containers-common
+    sudo apt update ; sudo apt install golang-github-containers-common
 
 == Install DHCP container service
 
