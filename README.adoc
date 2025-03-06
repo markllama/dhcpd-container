@@ -56,7 +56,7 @@ functionally equivalent container images. Both are based on the Fedora
 https://www.isc.org/dhcp/[ISC DHCP server] binary: `dhcpd`.
 
 The `dhcpd-fedora` image uses the
-https://quay.io/repository/fedora/fedora-minimal[registry.fedoraproject.org/fedora-minimal]
+https://quay.io/repository/fedora/fedora-minimal[fedora-minimal]
 base image. The `dhcpd` image is built from scratch.
 
 This document describes the usage of these images to provide a DHCP
@@ -64,7 +64,6 @@ service on a host capable of running software containers from
 `systemd-containers`. To learn how the container images were built, see:
 
 * https://quay.io/repository/markllama/dhcpd-fedora[quay.io/markllama/dhcpd-fedora] +
-  ISC DHCP
   link:FEDORA_BASE.adoc[Build Instructions]
 * https://quay.io/repository/markllama/dhcpd[quay.io/markllama/dhcpd] +
   link:MINIMAL_BASE.adoc[Build Instructions]
