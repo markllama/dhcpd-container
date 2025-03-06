@@ -1,7 +1,368 @@
 // Documenting a container image to run ISC DHCP
+// - Minimal Base Image - Fedora
 //
+// * Create model file tree
+//   * 
+// * Create container image from file tree
 //
 :toc:
 :toc-placement!:
-= DHCP Service Container From Minimal Base
+= ISC DHCP Server - From Scratch
+
+The ISC DHCP server, running in the regular mode without backing
+servers like ldap, is a single process running from a single binary
+executable. A base image like `fedora-minimal` provides only package
+management tools, and those tools remain as a layer of the final
+image. Installing the `dhcp-server` package draws in an additional 10
+packages and those too remain in the new image layer but are unused by
+the DHCP service. The `dhcp-fedora` image described in
+link:FEDORA_BASE.adoc[ISC DHCP - Fedora Base] the base image is ~
+146MB and the service layer is an additional 27MB. The base image
+contains over 30,000 files that are entirely unused during operation.
+
+If the service runs as a single process from a single binary, how
+small can a functional container image be?
+
+Modern operating systems depend heavily on *dynamic linking* and
+*shared objects*. A shared object is a file of compiled code that
+provides a set of functions that are commonly used by many
+binaries. This reduces the size of those binaries because all those
+functions do not need to be duplicated in every statically linked
+binary. Every dynamically linked binary depends on a set of shared
+objects to resolve all of those dangling function bindings.
+
+To build a working container image from scratch, it must at least
+contain the service binary and any shared libraries that it
+depends on. Those files must be arranged in the container image so
+that they can be located and linked when the server binary is invoked.
+
+toc::[]
+
+== Creating a Model File Tree
+
+A container is (in the simplest form) a single process running from a
+single binary. In this example that's the DHCP server running from
+`/usr/sbin/dhcpd`. When the container image is instantiated, the
+process is started with a command line that invokes that binary.
+
+The container image must include the binary file and any files and
+resources that the binary operation depends on. Rather than installing
+packages on top of a base image, the files can be extracted directly
+from those packages and copied into a *model file tree*.  This is
+directory tree that mirrors the final content of the the image file
+tree (or the file layout of a real OS containing only those files).
+
+NOTE: This process is completely defined in
+link:scripts/create-model-tree.sh[`create-model-tree.sh`] +
+This document only highlights the specific steps. Review the
+script for details if you wish.
+
+This example uses RPM packages from the Fedora distribution, but the
+method applies to any Linux distro package system.
+
+=== Examine the Binary
+
+Since the runtime binary file is known the first step is to download
+the service package file and unpack that package for
+examination.
+
+The script creates a workspace with subdirectories to contain all of
+the downloaded package files and to contain the unpacked file
+trees. Each package is unpacked into its own tree to keep the contents
+distinct from all of the others.
+
+==== Identify the Service Package
+
+The `dnf` command is used to search remote package repositories and
+the local system for packages and the files they provide.
+
+.`dnf provides --quiet dhcpd`
+----
+dhcp-server-12:4.4.3-14.P1.fc41.x86_64 : Provides the ISC DHCP server
+Repo         : fedora
+Matched From : 
+Filename     : /usr/sbin/dhcpd
+----
+
+This command lists the full package name of he current package for the
+current system and the full path to the file on the last line.
+
+==== Pull the Service Package
+
+Once the package has been identified, it can be retrieved and stored:
+
+----
+dnf --quiet download --arch ${arch} --destdir ${pkg_dir} ${full_name} 
+----
+
+The parameters are provided by the script.
+
+* _arch_: The machine architecture of the new container
+* _pkg_dir_: Where to place the downloaded file
+* _full_name_: The package name determined in the previous step
+
+==== Unpack the Service Package
+
+RPM files are a specialized compressed file archive. An RPM must first be converted to a `cpio` archive before unpacking into the local filesystem.
+
+----
+rpm2cpio ${package_path} | cpio -idmu --quiet --directory ${unpack_dir}
+----
+
+* _package_path_: The path to the service package including the file name
+* _unpack_dir_: The target for unpacking the package tree +
+  This directory must have been created before unpacking. The script creates
+  a separate root directory for each package so that the contents of one does not
+  pollute or conflict with any others.
+
+==== Identify Shared Libraries
+
+Most binaries on Linux are dynamically linked. To run a dynamically
+linked binary the required libraries must be placed in the location
+where the dynamic linker expects them to be.
+
+The `ldd` tool examines a dynamically linked binary and reports the
+libraries it expects to find.
+
+.`ldd ${unpack_dir}/${binary_file}`
+----
+	linux-vdso.so.1 (0x0000ffffb7a1c000)
+	libkrb5.so.3 => /lib64/libkrb5.so.3 (0x0000ffffb7640000)
+	liblber.so.2 => /lib64/liblber.so.2 (0x0000ffffb7610000)
+	libldap.so.2 => /lib64/libldap.so.2 (0x0000ffffb7590000)
+	libsystemd.so.0 => /lib64/libsystemd.so.0 (0x0000ffffb7480000)
+	libc.so.6 => /lib64/libc.so.6 (0x0000ffffb72b0000)
+	/lib/ld-linux-aarch64.so.1 (0x0000ffffb79e0000)
+	libk5crypto.so.3 => /lib64/libk5crypto.so.3 (0x0000ffffb7270000)
+	libcom_err.so.2 => /lib64/libcom_err.so.2 (0x0000ffffb7240000)
+	libkrb5support.so.0 => /lib64/libkrb5support.so.0 (0x0000ffffb7210000)
+	libkeyutils.so.1 => /lib64/libkeyutils.so.1 (0x0000ffffb71c0000)
+	libcrypto.so.3 => /lib64/libcrypto.so.3 (0x0000ffffb6db0000)
+	libresolv.so.2 => /lib64/libresolv.so.2 (0x0000ffffb6d80000)
+	libevent-2.1.so.7 => /lib64/libevent-2.1.so.7 (0x0000ffffb6cf0000)
+	libsasl2.so.3 => /lib64/libsasl2.so.3 (0x0000ffffb6c90000)
+	libssl.so.3 => /lib64/libssl.so.3 (0x0000ffffb6ba0000)
+	libcap.so.2 => /lib64/libcap.so.2 (0x0000ffffb6b50000)
+	libgcc_s.so.1 => /lib64/libgcc_s.so.1 (0x0000ffffb6b10000)
+	libselinux.so.1 => /lib64/libselinux.so.1 (0x0000ffffb6ab0000)
+	libz.so.1 => /lib64/libz.so.1 (0x0000ffffb6a70000)
+	libcrypt.so.2 => /lib64/libcrypt.so.2 (0x0000ffffb6a20000)
+	libpcre2-8.so.0 => /lib64/libpcre2-8.so.0 (0x0000ffffb6950000)
+----
+
+* _unpack_dir_: The root of the directory containing the unpacked file trees
+* _binary_file_: The absolute path to the binary in the unpacked
+  tree +
+  In this case: `/usr/sbin/dhcpd`
+
+Each line of this output represents a required shared library. Most
+lines in this output contain three elements:
+
+1. The name of the required library
+2. The absolute path of the file containing the library
+3. The memory location where the library is loaded
+
+Only the absolute path is useful for our purposes.
+
+There are two lines that are different from the others. Both relate to
+the operation of the dynamic linker.
+
+The `linux-vdso.so.1` is a virtual file that is provided by the kernel to
+to all processes in user space. This line can be ignored.
+
+The other is the dynamic linking library,
+`/lib/ld-linux-aarch64.so.1`. It does not present a "file name"
+because only the path matters. This library implements the dynamic
+linking operations for the rest.
+
+With a little processing this output results in a list of files with
+absolute pathnames. These can be used in the same way as the binary
+file name to identify the containing package. 
+
+=== Resolve the Shared Libraries
+
+The next few steps must be done for each of the shared libraries
+indicated. Note that some of the packages provide more than one of
+these libraries, so it is beneficial, for each library, to check if the
+package has already been downloaded and unpacked before proceeding.
+
+==== Identify a Shared Library Package
+
+The library packages can be identified using the same `dnf provide`
+command as was used for the `dhcp-server` package, with one exception.
+
+The Linux
+https://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard[Filesystem
+Hierarchy Standard] defines two possible locations for
+libraries. These are `/lib` and `/usr/lib`. 64-bit systems add two
+more, `/lib64` and `/usr/lib64`. Most distributions now symlink the
+top level directories to those in `/usr`.
+
+.`ls -l /lib*`
+----
+lrwxrwxrwx. 1 root root 7 Jan  1  1970 /lib -> usr/lib
+lrwxrwxrwx. 1 root root 9 Jan  1  1970 /lib64 -> usr/lib64
+----
+
+This means that the path given by `ldd` may not be the path that the
+package publishes for the file. Fortunately, the `dnf provide` command
+can take multiple paths and any that don't resolve are ignored.
+
+In this example `libpath` is `/lib64/libkrb5.so.3`
+
+.`dnf --quiet provides ${libpath} /usr${libpath} 2>/dev/null | head -4`
+----
+krb5-libs-1.21.3-3.fc41.aarch64 : The non-admin shared libraries used by Kerberos 5
+Repo         : @System
+Matched From : 
+Filename     : /usr/lib64/libkrb5.so.3
+----
+
+The full package name is the first word on the first line. This can be
+tokenized down to 4 components:
+
+* `krb5-libs-1`: The package name
+* 1.21.3-3 : The major, minor, release and build numbers
+* fc41: Fedora version 41
+* aarch64: The machine architecture
+
+Only the first element is needed to locate the package.
+
+NOTE: This package name is an example of one variation that must be
+accounted for. Some package names end with a hyphenated number `-1` or
+some other integer. I'm not sure what the value represents but it will
+interfere with package lookup.  If the download with the full name fails
+to find a package, try it with the name minus that trailing string.
+
+==== Retrieve a Shared Library Package
+
+Downloading the library packages works in the same way as the
+`dhcp-server` package did. For this example the enviroment variables
+are:
+
+* _package_name_: `krb5-libs`
+* _package_dir_: The workspace for downloaded packages
+
+
+.`dnf download ${package_name} --destdir ${package_dir}`
+----
+Updating and loading repositories:
+Repositories loaded.
+Downloading Packages:
+  krb5-libs-0:1.21.3-4.fc41.aarch64                           100% | 772.7 KiB/s | 763.4 KiB |  00m01s
+----
+
+The output indicates the actual package version retrieved. This
+command also accepts the `--quiet` option for scripting and
+parsing. If the package is already present it will indicate that and
+exit.
+
+==== Unpack a Shared Library Package
+
+Unpacking the library packages is done in the same way as it was for
+the `dhcp-server` package. Each package should be unpacked into a
+dedicated root directory to prevent the packages from overlaying each other.
+
+----
+rpm2cpio ${package_path} | cpio -idmu --quiet --directory ${unpack_dir}
+----
+
+* _package_path_: The path to the service package including the file name
+* _unpack_dir_: The target for unpacking the package tree +
+  This directory must have been created before unpacking. The script creates
+  a separate root directory for each package so that the contents of one does not
+  pollute or conflict with any others.
+
+=== Populate the Model Tree
+
+At this point all of the required packages are unpacked and all of the
+required files have been located by the package name and an absolute path from the root
+of the unpack tree. The model tree must be prepared for the the binary
+and library files.
+
+----
+mkdir ${model_root}
+ln -s usr/lib ${model_root}/lib
+ln -s usr/lib64 ${model_root}/lib64
+mkdir -p ${model_root}/usr/lib
+mkdir -p ${model_root}/usr/lib64
+mkdir -p ${model_root}/usr/sbin
+----
+
+Most of the shared library files that `ldd` reported are actually
+symbolic links to a matching file with an additional version number.
+
+For example, the `libkrb5.so.3` library is a symlink to
+`libkrb5.so.3.3`. 
+
+.`(cd ${workdir} ; ls -l usr/lib64/libkrb5.so.*)`
+----
+lrwxrwxrwx. 1 core core     14 Feb 11 00:00 usr/lib64/libkrb5.so.3 -> libkrb5.so.3.3
+-rwxr-xr-x. 1 core core 873304 Feb 11 00:00 usr/lib64/libkrb5.so.3.3
+----
+
+It may be possible to copy the library to the short
+name but for rigor the script copies the file to the correct name and
+reproduces the symlink as it is created by the package.
+
+The final result looks like this:
+
+.`(cd ${model_root} ; ls -lgGR   *)`
+----
+lrwxrwxrwx. 1  7 Mar  4 15:23 lib -> usr/lib
+lrwxrwxrwx. 1  9 Mar  4 15:23 lib64 -> usr/lib64
+
+usr:
+total 4
+drwxr-xr-x. 2   35 Mar  4 15:23 lib
+drwxr-xr-x. 2 4096 Mar  4 15:23 lib64
+
+usr/lib:
+total 816
+-rwxr-xr-x. 1 832552 Mar  4 15:23 ld-linux-aarch64.so.1
+
+usr/lib64:
+total 12584
+-rwxr-xr-x. 1 2301232 Mar  4 15:23 libc.so.6
+lrwxrwxrwx. 1      14 Mar  4 15:23 libcap.so.2 -> libcap.so.2.70
+-rwxr-xr-x. 1  200816 Mar  4 15:23 libcap.so.2.70
+lrwxrwxrwx. 1      17 Mar  4 15:23 libcom_err.so.2 -> libcom_err.so.2.1
+-rwxr-xr-x. 1   69296 Mar  4 15:23 libcom_err.so.2.1
+... <lines elided>
+lrwxrwxrwx. 1      21 Mar  4 15:23 libz.so.1 -> libz.so.1.3.1.zlib-ng
+-rwxr-xr-x. 1  136752 Mar  4 15:23 libz.so.1.3.1.zlib-ng
+----
+
+The model tree now contains 
+
+== Building a Minimal Container Image
+
+
+=== Populate the Image File Tree
+
+==== `buildah unshare` for Rootless Containers
+
+
+==== Mounting the Image Filesystem
+
+
+==== Copy the Model Tree
+
+
+==== Add Root Symlinks
+
+
+=== Unmount the Image Filesystem
+
+
+=== Define Container Operation
+
+
+
+== Summary
+
+
+== References
+
+
 

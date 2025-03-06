@@ -1,44 +1,243 @@
 // Documenting a container image to run ISC DHCP
 // - Traditional Base Image - Fedora
-//
+// 
+
 :toc:
 :toc-placement!:
-= Traditional Base Image
 
-This document describes the creation and operation of an ISC DHCP
-service presented as a container image. The image is built using a
-distro base image and then applying the service packages as they would
-be on a conventional host OS. The remaining tasks add the image
-handles for configuration and control files and network port holes to
-allow the container to run as a system service.
+= ISC DHCP Server - Fedora Base
 
-The container creation tool is https://buildah.io[`buildah`] a CLI
-tool to create OCI compliant container images, similar to `docker
-build` but with significantly more control and visibilty during the
-process.
+The simplest way to create a new container image is to start with a
+base image from a well-known distribution. The base images include
+package management software. Populating a new image is a matter of
+installing the desired packages. The rest of the package creation is
+defining the process start command and any volumes or ports that the
+container instance will use.
 
 toc::[]
 
-== Overview
+== Creating a Container Image with `buildah`
 
-=== Podman and Buildah
+`buildah` is a container management tool produced by Red Hat as an
+alternative to Docker. It produces OCI compliant container images.
 
-When creating an image using `docker` you first create a `Dockerfile`
-that completely describes your container. It defines the steps to add
-files to the image and the holes you poke in it (volumes and ports) so
-that you can communicate with it and it can talk to the world. Each
-line in the `Dockerfile` corresponds to a new layer that will,
-contribute to your final image. With `docker`, container construction
-is an atomic operation.
+`buildah` operates differently from Docker. It composes a container
+image as a series of CLI steps that allow for very precise container
+image composition. While it can consume a *Dockerfile*, it can also be
+used to write a shell script that composes and optionally publishes
+the image.
 
-With `buildah` you run a series of shell CLI commands that initialize,
-populate, configure and then commit your changes create a new image layer. Container construction is an iterative process
+The process below defines a container based on the `fedora-minimal`
+image. It installs the `dhcp-server` package and then cleans the yum
+cache. The next three lines define the volumes that provide the
+configuration and database from the OS and the network ports for the
+service. The final four configuration lines provide metadata for the
+image. The last line saves the new image to local storage.
+
+=== The Base Image
+
+All container images start with a *base image*:[The base image can be
+*scratch*, an empty image]. The new image consists of a layering of
+the base image and new layers created during the image build process.
+
+Many linux distributions provide a couple of OS base images, usually
+one that looks like a conventional OS deployment and another *minimal*
+one that has been stripped down to basically a shell and package
+manager.
+
+To start a new container image build, use the `buildah from`
+command. This command takes the identifier for a base image and
+returns a container identifier string that is used for the rest of the
+operations on the new container.
+
+The container created here uses the `fedora-minimal` base image. It
+doesn't specify the version so it will always use the latest.
+
+    # Create a new container image
+    CONTAINER=$(buildah from registry.fedoraproject.org/fedora-minimal)
+
+When this command completes the `CONTAINER` environment variable
+contains the new image identifier.
+
+=== Installing Software
+
+With a distribution base image you can use the standard package
+management tools to install new software. 
+
+    # Install the DHCP server package and then remove any cached files
+    buildah run $CONTAINER dnf install -y --nodocs --setopt install_weak_deps=False dhcp-server
+    buildah run $CONTAINER dnf clean all -y
+
+The package management software typically caches metadata and the
+package file so it's common to clean the cache after all software is
+installed. Using `docker`, each line creates a new image layer. This
+means you have to create a single entry that installs all the software
+then cleans the cache, leading to long run-on install commands. With
+`buildah` you can run those two commands separately or any number of
+commands and create only a single layer.
+
+=== Opening Holes
+
+A software container service that doesn't communicate with the outside
+world isn't very useful. Both files and network communication can be
+allowed to pass through a container boundary.
+
+==== Configuration Files
+
+The container process is configured by mapping files or directories
+from the host into the container file system. For the DHCP daemon
+responding to IPv4 requests there is a single configuration file and a
+single database file.
+
+    # add a volume to include the configuration file
+    # Leave the files in the default locations 
+    buildah config --volume /etc/dhcp/dhcpd.conf $CONTAINER
+    buildah config --volume /var/lib/dhcpd/dhcp.leases $CONTAINER
+
+It is possible to create volumes on whole directories. If this
+container is extended to serve IPv6 it may be preferred to create
+these volumes on the directories to avoid repetitive volume declarations.
+
+==== Network Ports
+
+Containers often need to communicate with other processes or
+servers. If the process listens on a particular network port, that
+must be declared for the container.
+
+    # open ports for listening
+    buildah config --port 68/udp --port 69/udp ${CONTAINER}
+
+The DHCP service listens on two UDP ports, for the `bootp` and `dhcp`
+services.
+
+=== Process Invocation
+
+Every container image defines a single process and its runtime
+environment. The last thing to do once the context has been defined is
+to invoke the binary that runs the process.
+
+    # Define the startup command
+    buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $CONTAINER
+
+The placement of the files in the volumes defined above allow the
+process to run using the default locations for the configuration and
+for the lease database. If it was useful to move those files inside
+the container, the invocation can be modified.
+
+=== Metadata
+
+A container image can contain information about the contents. The
+author and builder metadata have pre-defined labels, but it is also
+possible to apply arbitrary key-value pairs to provide additional
+information.
+
+    # Identify the container source
+    buildah config --author "Mark Lamourine <markllama@gmail.com>" $CONTAINER
+    buildah config --created-by "Mark Lamourine <markllama@gmail.com>" $CONTAINER
+    
+    # Indicate the software and the license terms
+    buildah config --annotation description="ISC DHCPD 4.4.3" $CONTAINER
+    buildah config --annotation license="MPL-2.0" $CONTAINER
+
+The annotations might also include the base image distro information
+and the git repository for the build script.
+
+=== Commit and Tag
+
+When the container image has been properly defined it must be
+committed and tagged for release. 
+
+    # Save the container to an image
+    buildah commit --squash $CONTAINER dhcpd-fedora
+
+The commit step closes the image and applies a local label so that the
+image can be examined and tested. The `--squash` directive causes all
+of the steps to be committed as a single layer.
+
+Once the developer is satisfied,
+they can apply a global identification tag and push the image to the
+appropriate repository. This step is not included in the build script
+to allow for that testing.
+
+    # To tag and publish the image
+    buildah tag localhost/dhcpd-fedora quay.io/markllama/dhcpd-fedora
+    buildah push quay.io/markllama/dhcpd-fedora
+
+Public repositories require authentication before allowing a user to
+push a new image, so this must be done once for a build/publish cycle
+
+    buildah login quay.io --username markllama
+    Password: ********
+
+== TL;DR - The Container Build Script
+
+The link:https://github.com/markllama/dhcpd-container/blob/documentation/scripts/fedora-dhcpd.sh[script below] is made up of the lines detailed above.
+
+.`fedora-dhcpd.sh`
+[source,shell]
+----
+#!/bin/bash
+#
+# Create a new container image
+CONTAINER=$(buildah from registry.fedoraproject.org/fedora-minimal)
+
+# Install the DHCP server package and then remove any cached files
+buildah run $CONTAINER dnf install -y --nodocs --setopt install_weak_deps=False dhcp-server
+buildah run $CONTAINER dnf clean all -y
+
+# add a volume to include the configuration file
+# Leave the files in the default locations 
+buildah config --volume /etc/dhcp/dhcpd.conf $CONTAINER
+buildah config --volume /var/lib/dhcpd/dhcp.leases $CONTAINER
+
+# open ports for listening
+buildah config --port 68/udp --port 69/udp ${CONTAINER}
+
+# Define the startup command
+buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $CONTAINER
+
+buildah config --author "Mark Lamourine <markllama@gmail.com>" $CONTAINER
+buildah config --created-by "Mark Lamourine <markllama@gmail.com>" $CONTAINER
+
+buildah config --annotation description="ISC DHCPD 4.4.3" $CONTAINER
+buildah config --annotation license="MPL-2.0" $CONTAINER
+
+# Save the container to an image
+buildah commit --squash $CONTAINER dhcpd-fedora
+----
+
+== Summary
+
+When combined with the link:https://github.com/markllama/dhcpd-container/blob/documentation/dhcpd.container[`dhcpd.container`] systemd
+container unit file, this container provides the same DHCP service
+that you would get by running the service from a package installed on
+the host OS. You can update the DHCP server and revert it by modifying
+the `dhcpd.container` file and specifying a previous release
+tag.footnote:[I need to see if *Environment* and *EnvironmentFile*
+values can apply to the *Image* option.] You can update to the current
+version merely by restarting the service or rebooting the system.
+
+The base image is 146MB and is made up of 100 packages and
+over 30,000 files. The installation request for the single `dhcp-server`
+package results in the installation of 10 package dependencies making
+up another 27MB. 
+
+Altogether the new service image is over 170MB on aarch64. It contains all of the
+files of the base image plus all of the files of the `dhcp-server`
+package and dependencies. But it only runs one binary. The rest of the
+files in the image are unneeded for operation.
+
+There is another way: Create a link:https://github.com/markllama/dhcpd-container/blob/documentation/MINIMAL_BASE.adoc[minimal
+container image] from scratch.
 
 == References
 
 * https://buildah.io[`buildah`] +
-  A container image compositor to create OCI compliant container iamges.
+  A container management tool to build OCI compliant images.
+
+* https://developers.redhat.com/blog/2021/01/11/getting-started-with-buildah[Getting
+  Started with Buildah] +
+  A simple tutorial for creating a container image with `buildah`
   
-* https://docker.com[`docker`] +
-  The first commercially successful software container manager
-  (yes, it created Containers for the Masses, not the first containers)
+* https://opencontainers.org/[Open Container Initiative] +
+  The organization that defines the software container specification

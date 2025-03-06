@@ -1,0 +1,44 @@
+// Documenting a container image to run ISC DHCP
+// - Traditional Base Image - Fedora
+//
+:toc:
+:toc-placement!:
+= Traditional Base Image
+
+This document describes the creation and operation of an ISC DHCP
+service presented as a container image. The image is built using a
+distro base image and then applying the service packages as they would
+be on a conventional host OS. The remaining tasks add the image
+handles for configuration and control files and network port holes to
+allow the container to run as a system service.
+
+The container creation tool is https://buildah.io[`buildah`] a CLI
+tool to create OCI compliant container images, similar to `docker
+build` but with significantly more control and visibilty during the
+process.
+
+toc::[]
+
+== Overview
+
+=== Podman and Buildah
+
+When creating an image using `docker` you first create a `Dockerfile`
+that completely describes your container. It defines the steps to add
+files to the image and the holes you poke in it (volumes and ports) so
+that you can communicate with it and it can talk to the world. Each
+line in the `Dockerfile` corresponds to a new layer that will,
+contribute to your final image. With `docker`, container construction
+is an atomic operation.
+
+With `buildah` you run a series of shell CLI commands that initialize,
+populate, configure and then commit your changes create a new image layer. Container construction is an iterative process
+
+== References
+
+* https://buildah.io[`buildah`] +
+  A container image compositor to create OCI compliant container iamges.
+  
+* https://docker.com[`docker`] +
+  The first commercially successful software container manager
+  (yes, it created Containers for the Masses, not the first containers)

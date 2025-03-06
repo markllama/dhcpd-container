@@ -78,7 +78,7 @@ function main() {
     initialize_model_tree ${MODEL_ROOT}
 
     ## copy daemon binary
-    # all files from 
+    copy_file ${pkg_name} ${binary_path} ${UNPACK_ROOT} ${MODEL_ROOT}
 
     ## for each library
     [ -z "${DEBUG}" ] || echo "library records: ${library_records[@]}" >&2
@@ -234,13 +234,24 @@ function symlink_target() {
     ls -l ${file_path} | sed 's/.*-> //'
 }
 
+#
+# This only works if there's only one file with this filename
+#
 function copy_file() {
     local pkg_name=$1
     local file_name=$2
     local src_root=$3
     local dst_root=$4
 
-    local file_path=$(cd ${src_root}/${pkg_name} ; find * -name ${file_name})
+    local file_path
+    case $file_name in
+	/*)
+	    file_path=$file_name
+	    ;;
+	*)
+	    file_path=$(cd ${src_root}/${pkg_name} ; find * -name ${file_name})
+    esac
+    # If it's a relative path
     local src_file=${src_root}/${pkg_name}/${file_path}
     local dst_file=${dst_root}/${file_path}
     local dst_dir=$(dirname $dst_file)

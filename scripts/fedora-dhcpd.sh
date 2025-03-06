@@ -10,34 +10,32 @@
 # Stop on any error 
 set -o errexit
 
-function main() {
-    # Create a container
-    CONTAINER=$(buildah from registry.fedoraproject.org/fedora-minimal:41)
+: AUTHOR=${AUTHOR:=
 
-    # Install the DHCP server package and then remove any cached files
-    buildah run $CONTAINER dnf install -y --releasever 41  --nodocs --setopt install_weak_deps=False dhcp-server
-    buildah run $CONTAINER dnf clean all -y --releasever 41
+# Create a container
+CONTAINER=$(buildah from registry.fedoraproject.org/fedora-minimal)
 
-    # add a volume to include the configuration file
-    # Leave the files in the default locations 
-    buildah config --volume /etc/dhcp/dhcpd.conf $CONTAINER
-    buildah config --volume /var/lib/dhcpd/dhcp.leases $CONTAINER
+# Install the DHCP server package and then remove any cached files
+buildah run $CONTAINER dnf install -y --nodocs --setopt install_weak_deps=False dhcp-server
+buildah run $CONTAINER dnf clean all -y
 
-    # open ports for listening
-    buildah config --port 68/udp --port 69/udp ${CONTAINER}
+# add a volume to include the configuration file
+# Leave the files in the default locations 
+buildah config --volume /etc/dhcp/dhcpd.conf $CONTAINER
+buildah config --volume /var/lib/dhcpd/dhcp.leases $CONTAINER
 
-    # Define the startup command
-    buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $CONTAINER
+# open ports for listening
+buildah config --port 68/udp --port 69/udp ${CONTAINER}
 
-    buildah config --author "Mark Lamourine <markllama@gmail.com>" $CONTAINER
-    buildah config --created-by "Mark Lamourine <markllama@gmail.com>" $CONTAINER
+# Define the startup command
+buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $CONTAINER
 
-    # Save the container to an image
-    buildah commit --squash $CONTAINER dhcpd-fedora
-}
+buildah config --author "Mark Lamourine <markllama@gmail.com>" $CONTAINER
+buildah config --created-by "Mark Lamourine <markllama@gmail.com>" $CONTAINER
 
+buildah config --annotation description="ISC DHCPD 4.4.3" $CONTAINER
+buildah config --annotation license="MPL-2.0" $CONTAINER
 
-#
-#
-#
-main $*
+# Save the container to an image
+buildah commit --squash $CONTAINER dhcpd-fedora
+
