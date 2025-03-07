@@ -379,7 +379,7 @@ The solution is to loopback mount the image filesystem onto the
 operating system and then use the OS tools to create the file
 tree. This is where `buildah` stands out.
 
-==== `buildah unshare` for Rootless Containers
+=== `buildah unshare` for Rootless Containers
 
 As https://www.redhat.com/en/authors/dan-walsh[Dan Walsh] explains in
 https://www.redhat.com/en/blog/buildah-unshare-command[a blog post] on
@@ -404,7 +404,7 @@ the model file tree into it.
 
 ._An example of_ `buildah unshare`
 ----
-user@hostname:~/dhcpd-container$ buildah unshare ${container_id}
+user@hostname:~/dhcpd-container$ buildah unshare
 root@hosthame:~/dhcpd-container# id
 uid=0(root) gid=0(root) groups=0(root)...
 root@hostname:~/dhcpd-container# lsns
@@ -430,24 +430,159 @@ namespace, but the only ones that require it for this procedure are the `mount` 
 `unmount` commands. The image build script can be run either way and
 will `unshare` for the copy steps if needed.
 
-==== Mounting the Image Filesystem
+To make the container filesystem available, the `unshare` command
+takes the container id in
+link:#building-a-minimal-container-image[Building a Minimal Container
+Image] above.
 
+._Create a mock-root namespace for container filesystem access_
+----
+buildah unshare ${container_id}
+----
 
+Rather than requiring the user to call `buildah unshare` before
+invoking the script, it checks to see if it's already running in an
+unshare environment. If not, it calls itself again with
+`unshare`. Then it calls the `copy_model_tree()` function to mount the
+container filesystem and copy the model tree into it.
 
-==== Copy the Model Tree
+._Re-call the script with_ `unshare` _if needed._
+[source,shell]
+----
+# ...
+if [ -z "${BUILDAH_ISOLATION}" ] ; then
+    # Run the file copy in an unshare environement
+    buildah unshare bash $0 -c ${container} -s ${SOURCE_ROOT}
+else
+    # Aldready in an unshare environment
+    copy_model_tree ${SOURCE_ROOT} ${container}
+fi
+# ...
+----
 
+=== Copy the Model Tree
 
-==== Add Root Symlinks
+The critical step in creating a container is populating the
+filesystem for the image. For an image using a distro base, this is
+done with the distro package manager. Single files are added using the
+`copy` command.
 
+For a minimal image, the file tree must be created and the files
+placed _without access to tools inside the container base_. The
+solution is to mount the container image filesystem onto the build
+host and copy the files in directly using the host tools.
 
-==== Unmount the Image Filesystem
+The `bash` function below assumes that the process is already in an
+`unshare` environment. It mounts the container filesystem, copies the
+contents of a file tree into the image file tree recursively. It
+creates two directories required for the application configuration and
+data volumes. Finally it unmounts the container image and returns.
 
+.`copy_model_tree` _function_
+[source,shell]
+----
+function copy_model_tree() {
+    local source_root=$1
+    local container_id=$2
+    
+    # Access the container file space
+    local mountpoint=$(buildah mount $container_id)
+
+    # Create the model directory tree 
+    (cd ${source_root} ; find * -type d) | xargs -I{} mkdir -p ${mountpoint}/{}
+    # Copy the model tree to the image filesystem.
+    cp -r ${source_root}/* ${mountpoint}
+    
+    # Create volume mount points
+    mkdir -p ${mountpoint}/etc/dhcp
+    mkdir -p ${mountpoint}/var/lib/dhcpd
+
+    # Release the container file space
+    buildah unmount ${container_id}
+}
+----
+
+The separate `mkdir` line insures that symlinks to directories in the
+model tree aren't created in place of real directories.
 
 === Define Container Operation
 
+The final container definition steps are identical to those for a
+distro based image.
+
+._Define container operation and metadata_
+[source,shell]
+----
+# add a volume to include the configuration file
+# Leave the files in the default locations 
+buildah config --volume /etc/dhcp/dhcpd.conf $container
+buildah config --volume /var/lib/dhcpd $container
+
+# open ports for listening
+buildah config --port 68/udp --port 69/udp ${container}
+
+# Define the startup command
+buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $container
+
+buildah config --author "${AUTHOR}" $container
+buildah config --created-by "${BUILDER}" $container
+buildah config --annotation description="ISC DHCPD 4.4.3" $container
+buildah config --annotation license="MPL-2.0" $container
+
+# Save the container to an image
+buildah commit --squash $container dhcpd
+----
+
+This fragment defines the configuration volumes, opens the required
+ports and sets the image metadata before committing and naming the
+image within the local container namespace.
+
+.Review the new container image
+[source,shell]
+----
+podman image inspect localhost/dhcpd |
+  jq '.[0] | {"Id": .Id, "Size": .Size, "Config": .Config }'
+{
+  "Id": "aacc40467b44590ece02a7c68c4e00ac6fcafaa08d7914452618f622cd65a445",
+  "Size": 16260301,
+  "Config": {
+    "ExposedPorts": {
+      "68/udp": {},
+      "69/udp": {}
+    },
+    "Cmd": [
+      "/usr/sbin/dhcpd",
+      "-d",
+      "--no-pid"
+    ],
+    "Volumes": {
+      "/etc/dhcp/dhcpd.conf": {},
+      "/var/lib/dhcpd": {}
+    },
+    "WorkingDir": "/",
+    "Labels": {
+      "io.buildah.version": "1.39.0"
+    }
+  }
+}
+----
+
+You can always examine a container image this way to determine the
+run-time parameters. The full report is significantly bigger and more detailed.
 
 == Summary
 
+As noted, this container image runs in link:README.adoc[exactly the same way] as the
+link:FEDORA_BASE.adoc[Fedora based] image. The real payoff is in the
+the size savings.
+
+._Compare scratch and distro based image size_
+[source,shell]
+----
+podman images | grep dhcp
+localhost/dhcpd                            latest      aacc40467b44  25 hours ago  16.3 MB
+localhost/dhcpd-fedora                     latest      4581f80d82a6  2 days ago    172 MB
+----
 
 == References
 

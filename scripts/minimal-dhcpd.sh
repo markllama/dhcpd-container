@@ -30,34 +30,34 @@ function main() {
 
     if [ -z "${BUILDAH_ISOLATION}" -o -z "${CONTAINER_ID}" ] ; then
 	# Create a container
-	local CONTAINER=$(buildah from --name $SERVICE scratch)
+	local container=$(buildah from --name $SERVICE scratch)
 
 	if [ -z "${BUILDAH_ISOLATION}" ] ; then
 	    # Run the file copy in an unshare environement
-	    buildah unshare bash $0 -c ${CONTAINER} -s ${SOURCE_ROOT}
+	    buildah unshare bash $0 -c ${container} -s ${SOURCE_ROOT}
 	else
 	    # Aldready in an unshare environment
-	    copy_model_tree ${SOURCE_ROOT} ${CONTAINER}
+	    copy_model_tree ${SOURCE_ROOT} ${container}
 	fi
 	
 	# add a volume to include the configuration file
 	# Leave the files in the default locations 
-	buildah config --volume /etc/dhcp/dhcpd.conf $CONTAINER
-	buildah config --volume /var/lib/dhcpd $CONTAINER
+	buildah config --volume /etc/dhcp/dhcpd.conf $container
+	buildah config --volume /var/lib/dhcpd $container
 
 	# # open ports for listening
-	buildah config --port 68/udp --port 69/udp ${CONTAINER}
+	buildah config --port 68/udp --port 69/udp ${container}
 
 	# # Define the startup command
-	buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $CONTAINER
+	buildah config --cmd "/usr/sbin/dhcpd -d --no-pid" $container
 
-	buildah config --author "${AUTHOR}" $CONTAINER
-	buildah config --created-by "${BUILDER}" $CONTAINER
-	buildah config --annotation description="ISC DHCPD 4.4.3" $CONTAINER
-	buildah config --annotation license="MPL-2.0" $CONTAINER
+	buildah config --author "${AUTHOR}" $container
+	buildah config --created-by "${BUILDER}" $container
+	buildah config --annotation description="ISC DHCPD 4.4.3" $container
+	buildah config --annotation license="MPL-2.0" $container
 
 	# # Save the container to an image
-	buildah commit --squash $CONTAINER $SERVICE
+	buildah commit --squash $container $SERVICE
 
 	buildah tag localhost/dhcpd quay.io/markllama/dhcpd
 
@@ -65,7 +65,7 @@ function main() {
 
     else
 	# Only the copy needs to happen in an unshare environment
-	copy_model_tree ${SOURCE_ROOT} ${CONTAINER_ID}
+	copy_model_tree ${SOURCE_ROOT} ${CONTAINERb=_ID}
     fi
 }
 
