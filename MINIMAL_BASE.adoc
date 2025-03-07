@@ -356,7 +356,7 @@ cracker manages to exploit the running process and gain access to the
 container filesystem, the fewer resources the container gives them the
 better.
 
-.Initialize a new container build
+._Initialize a new container build_
 ----
 container_id=$(buildah from scratch)
 ----
@@ -402,7 +402,7 @@ without `root` access to the host system. For the purpose here this
 allows the user to loopback mount the container filesystem and copy
 the model file tree into it.
 
-.`buildah unshare` example
+._`buildah unshare` example_
 ----
 user@hostname:~/dhcpd-container$ buildah unshare ${container_id}
 root@hosthame:~/dhcpd-container# id
