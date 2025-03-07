@@ -365,8 +365,6 @@ The command above starts a container build procedure. It initializes a
 file space and metadata that will be manipulated in the steps that
 follow.
 
-=== Populate the Image File Tree
-
 When building a container image using a distro base image, you get the
 access to the package management system and the distro
 repositories. When building from scratch you have to provide all of
