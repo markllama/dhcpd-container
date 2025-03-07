@@ -440,7 +440,7 @@ will `unshare` for the copy steps if needed.
 ==== Add Root Symlinks
 
 
-=== Unmount the Image Filesystem
+==== Unmount the Image Filesystem
 
 
 === Define Container Operation
