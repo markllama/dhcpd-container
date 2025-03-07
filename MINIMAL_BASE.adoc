@@ -390,7 +390,7 @@ image filesystem so that they can operate on the files in the image
 and then destroy that namespace before returning.
 
 The common `buildah` commands do one thing at a time. Without a base
-image the `run` command isn't useful. The `copy` command can import
+image containing a shell, the `run` command isn't useful. The `copy` command can import
 single files or the contents of a single directory into a single
 target directory, but it doesn't offer recursive copies and the
 destination must already exist inside the container image.
@@ -402,7 +402,7 @@ without `root` access to the host system. For the purpose here this
 allows the user to loopback mount the container filesystem and copy
 the model file tree into it.
 
-.`buildah unshare` _example_
+._An example of_ `buildah unshare`
 ----
 user@hostname:~/dhcpd-container$ buildah unshare ${container_id}
 root@hosthame:~/dhcpd-container# id
