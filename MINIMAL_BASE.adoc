@@ -328,22 +328,110 @@ lrwxrwxrwx. 1      14 Mar  4 15:23 libcap.so.2 -> libcap.so.2.70
 -rwxr-xr-x. 1  200816 Mar  4 15:23 libcap.so.2.70
 lrwxrwxrwx. 1      17 Mar  4 15:23 libcom_err.so.2 -> libcom_err.so.2.1
 -rwxr-xr-x. 1   69296 Mar  4 15:23 libcom_err.so.2.1
+
 ... <lines elided>
+
 lrwxrwxrwx. 1      21 Mar  4 15:23 libz.so.1 -> libz.so.1.3.1.zlib-ng
 -rwxr-xr-x. 1  136752 Mar  4 15:23 libz.so.1.3.1.zlib-ng
+
+usr/sbin:
+total 2492
+-rwxr-xr-x. 1 2548720 Mar  4 15:23 dhcpd
 ----
 
-The model tree now contains 
+The model tree now contains the `dhcpd` binary and all of the required library files.
 
 == Building a Minimal Container Image
 
+The idea of building a minimal container image is to decrease the
+amount of data that must be downloaded initially and downloaded again
+when the container image is updated and rebuilt (and the base image is
+updated underneath it). The ratio of size of the runtime required bits
+to the installation overhead is surprsingly large.
+
+The other reason to minimize an image is that it decreases the attack
+surface of a container process by removing any files that aren't
+critical to operation. Containers are not a security mechanism. If a
+cracker manages to exploit the running process and gain access to the
+container filesystem, the fewer resources the container gives them the
+better.
+
+.Initialize a new container build
+----
+container_id=$(buildah from scratch)
+----
+
+The command above starts a container build procedure. It initializes a
+file space and metadata that will be manipulated in the steps that
+follow.
 
 === Populate the Image File Tree
 
+When building a container image using a distro base image, you get the
+access to the package management system and the distro
+repositories. When building from scratch you have to provide all of
+the image files and place them in a file tree that matches the
+expected structure for the application to run. Since the scratch image
+doesn't have tools like mkdir, it's not possible to use `buildah run`
+commands to manipulate the container file system.
+
+The solution is to loopback mount the image filesystem onto the
+operating system and then use the OS tools to create the file
+tree. This is where `buildah` stands out.
+
 ==== `buildah unshare` for Rootless Containers
 
+As https://www.redhat.com/en/authors/dan-walsh[Dan Walsh] explains in
+https://www.redhat.com/en/blog/buildah-unshare-command[a blog post],
+https://github.com/containers/buildah/blob/main/docs/buildah-unshare.1.md[`buildah
+unshare`] the common build commands `run` and `copy` create a new
+namespace where the user appears to be UID 0 (`root`) and mount the
+image filesystem so that they can operate on the files in the image
+and then destroy that namespace before returning.
+
+The common `buildah` commands do one thing at a time. Without a base
+image the `run` command isn't useful. The `copy` command can import
+single files or the contents of a single directory into a single
+target directory, but it doesn't offer recursive copies and the
+destination must already exist inside the container image.
+
+The `buildah unshare` command creates a new namespace in the same way
+as the other commands, but it runs a shell inside that namespace that
+makes it possible for the caller to access the container filesystem
+without `root` access to the host system. For the purpose here this
+allows the user to loopback mount the container filesystem and copy
+the model file tree into it.
+
+.`buildah unshare` example
+----
+user@hostname:~/dhcpd-container$ buildah unshare ${container_id}
+root@hosthame:~/dhcpd-container# id
+uid=0(root) gid=0(root) groups=0(root)...
+root@hostname:~/dhcpd-container# lsns
+        NS TYPE   NPROCS   PID USER COMMAND
+4026531834 time        3  4862 root buildah-in-a-user-namespace unshare
+4026531835 cgroup      3  4862 root buildah-in-a-user-namespace unshare
+4026531836 pid         3  4862 root buildah-in-a-user-namespace unshare
+4026531838 uts         3  4862 root buildah-in-a-user-namespace unshare
+4026531839 ipc         3  4862 root buildah-in-a-user-namespace unshare
+4026531840 net         3  4862 root buildah-in-a-user-namespace unshare
+4026532291 user        3  4862 root buildah-in-a-user-namespace unshare
+4026532293 mnt         3  4862 root buildah-in-a-user-namespace unshare
+root@hostname:~/dhcpd-container# env | grep BUILDAH
+BUILDAH_ISOLATION=rootless
+root@hostname:~/dhcpd-container# exit
+user@hostname:~/dhcpd-container$
+----
+
+The fragment above shows what `buildah unshare` is doing.
+
+All of the `buildah` commands can be run within the `unshare`
+namespace, but the only ones that require it for this procedure are the `mount` and
+`unmount` commands. The image build script can be run either way and
+will `unshare` for the copy steps if needed.
 
 ==== Mounting the Image Filesystem
+
 
 
 ==== Copy the Model Tree
@@ -358,11 +446,12 @@ The model tree now contains
 === Define Container Operation
 
 
-
 == Summary
 
 
 == References
 
-
+* https://www.redhat.com/en/blog/buildah-unshare-command:[The `buildah unshare` command]
+* https://github.com/containers/buildah/blob/main/docs/buildah-unshare.1.md[`buildah
+  unshare` man page]
 
