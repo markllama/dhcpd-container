@@ -46,7 +46,7 @@ to produce the image itself.
   Fedora YUM repositories, create a model tree of the binary and
   libraries is requires.
 * link:scripts/minimal-dhcpd.sh[`minimal-dhcpd.sh`] +
-  Give a model file tree for a DHCP container, populate the the
+  Given a model file tree for a DHCP container, populate the the
   container image filesystem and create the image.
 
 
