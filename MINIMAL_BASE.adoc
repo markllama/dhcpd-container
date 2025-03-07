@@ -33,8 +33,22 @@ objects to resolve all of those dangling function bindings.
 
 To build a working container image from scratch, it must at least
 contain the service binary and any shared libraries that it
-depends on. Those files must be arranged in the container image so
-that they can be located and linked when the server binary is invoked.
+depends on. Those files must identified and retrieved. They must
+be arranged in the container image so that they can be located and
+linked when the server binary is invoked.
+
+This two-step procedure is divided into two scripts, one to create a
+model of the file tree that will be placed into the image and a second
+to produce the image itself.
+
+* link:scripts/create-model-tree.sh[`create-model-tree.sh`] +
+  Given the name of a binary file that is provided by a package in the
+  Fedora YUM repositories, create a model tree of the binary and
+  libraries is requires.
+* link:scripts/minimal-dhcpd.sh[`minimal-dhcpd.sh`] +
+  Give a model file tree for a DHCP container, populate the the
+  container image filesystem and create the image.
+
 
 toc::[]
 
@@ -355,6 +369,10 @@ critical to operation. Containers are not a security mechanism. If a
 cracker manages to exploit the running process and gain access to the
 container filesystem, the fewer resources the container gives them the
 better.
+
+This section only shows the highlights of this procedure.
+The procedure is fully described in the
+link:scripts/minimal-dhcpd.sh[`minimal-dhcpd.sh`] script. 
 
 ._Initialize a new container build_
 ----
