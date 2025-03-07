@@ -402,7 +402,7 @@ without `root` access to the host system. For the purpose here this
 allows the user to loopback mount the container filesystem and copy
 the model file tree into it.
 
-._`buildah unshare` example_
+.`buildah unshare` _example_
 ----
 user@hostname:~/dhcpd-container$ buildah unshare ${container_id}
 root@hosthame:~/dhcpd-container# id
