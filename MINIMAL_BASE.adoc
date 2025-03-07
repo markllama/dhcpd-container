@@ -370,7 +370,7 @@ cracker manages to exploit the running process and gain access to the
 container filesystem, the fewer resources the container gives them the
 better.
 
-This section only shows the highlights of this procedure.
+NOTE: This section only shows the highlights of this procedure.
 The procedure is fully described in the
 link:scripts/minimal-dhcpd.sh[`minimal-dhcpd.sh`] script. 
 
