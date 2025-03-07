@@ -383,8 +383,8 @@ tree. This is where `buildah` stands out.
 
 As https://www.redhat.com/en/authors/dan-walsh[Dan Walsh] explains in
 https://www.redhat.com/en/blog/buildah-unshare-command[a blog post],
-https://github.com/containers/buildah/blob/main/docs/buildah-unshare.1.md[`buildah
-unshare`] the common build commands `run` and `copy` create a new
+https://github.com/containers/buildah/blob/main/docs/buildah-unshare.1.md[`buildah unshare`]
+the common build commands `run` and `copy` create a new
 namespace where the user appears to be UID 0 (`root`) and mount the
 image filesystem so that they can operate on the files in the image
 and then destroy that namespace before returning.
