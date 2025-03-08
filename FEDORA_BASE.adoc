@@ -36,7 +36,7 @@ image. The last line saves the new image to local storage.
 
 === The Base Image
 
-All container images start with a *base image*:[The base image can be
+All container images start with a *base image*.footnote:[The base image can be
 *scratch*, an empty image]. The new image consists of a layering of
 the base image and new layers created during the image build process.
 
