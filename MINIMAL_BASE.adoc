@@ -23,6 +23,10 @@ contains over 30,000 files that are entirely unused during operation.
 If the service runs as a single process from a single binary, how
 small can a functional container image be?
 
+toc::[]
+
+== Dynamic Linking and Shared Objects
+
 Modern operating systems depend heavily on *dynamic linking* and
 *shared objects*. A shared object is a file of compiled code that
 provides a set of functions that are commonly used by many
@@ -48,9 +52,6 @@ to produce the image itself.
 * link:scripts/minimal-dhcpd.sh[`minimal-dhcpd.sh`] +
   Given a model file tree for a DHCP container, populate the the
   container image filesystem and create the image.
-
-
-toc::[]
 
 == Creating a Model File Tree
 
