@@ -611,7 +611,8 @@ over 150MB.
 
 There are only 22 files in the minimal container and only one is
 executable. The Fedora base image is a full distro image containing
-over 30,000 files.
+over 30,000 files. In this container, if something breaks, you know
+where to look.
 
 ==== Security
 
