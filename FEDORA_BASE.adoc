@@ -171,7 +171,7 @@ push a new image, so this must be done once for a build/publish cycle
 
 == TL;DR - The Container Build Script
 
-The link:https://github.com/markllama/dhcpd-container/blob/documentation/scripts/fedora-dhcpd.sh[script below] is made up of the lines detailed above.
+The link:https://github.com/markllama/dhcpd-container/blob/main/scripts/fedora-dhcpd.sh[script below] is made up of the lines detailed above.
 
 .`fedora-dhcpd.sh`
 [source,shell]
@@ -208,7 +208,7 @@ buildah commit --squash $CONTAINER dhcpd-fedora
 
 == Summary
 
-When combined with the link:https://github.com/markllama/dhcpd-container/blob/documentation/dhcpd.container[`dhcpd.container`] systemd
+When combined with the link:https://github.com/markllama/dhcpd-container/blob/main/dhcpd.container[`dhcpd.container`] systemd
 container unit file, this container provides the same DHCP service
 that you would get by running the service from a package installed on
 the host OS. You can update the DHCP server and revert it by modifying
@@ -227,7 +227,7 @@ files of the base image plus all of the files of the `dhcp-server`
 package and dependencies. But it only runs one binary. The rest of the
 files in the image are unneeded for operation.
 
-There is another way: Create a link:https://github.com/markllama/dhcpd-container/blob/documentation/MINIMAL_BASE.adoc[minimal
+There is another way: Create a link:https://github.com/markllama/dhcpd-container/blob/main/MINIMAL_BASE.adoc[minimal
 container image] from scratch.
 
 == References

@@ -16,7 +16,7 @@ management tools, and those tools remain as a layer of the final
 image. Installing the `dhcp-server` package draws in an additional 10
 packages and those too remain in the new image layer but are unused by
 the DHCP service. The `dhcp-fedora` image described in
-link:https://github.com/markllama/dhcpd-container/FEDORA_BASE.adoc[ISC DHCP - Fedora Base] the base image is ~
+link:https://github.com/markllama/dhcpd-container/blob/main/FEDORA_BASE.adoc[ISC DHCP - Fedora Base] the base image is ~
 146MB and the service layer is an additional 27MB. The base image
 contains over 30,000 files that are entirely unused during operation.
 
@@ -47,7 +47,7 @@ This two-step procedure is divided into two scripts, one to create a
 model of the file tree that will be placed into the image and a second
 to produce the image itself.
 
-* link:https://github.com/markllama/dhcpd-container/scripts/create-model-tree.sh[`create-model-tree.sh`] +
+* link:https://github.com/markllama/dhcpd-container/blob/main/scripts/create-model-tree.sh[`create-model-tree.sh`] +
   Given the name of a binary file that is provided by a package in the
   Fedora YUM repositories, create a model tree of the binary and
   libraries is requires.
@@ -591,7 +591,7 @@ run-time parameters. The full report is significantly bigger and more detailed.
 == Summary
 
 As noted, this container image runs in link:https://github.com/markllama/dhcpd-container/README.adoc[exactly the same way] as the
-link:https://github.com/markllama/dhcpd-container/FEDORA_BASE.adoc[Fedora based] image. The real payoff is in the
+link:https://github.com/markllama/dhcpd-container/blob/main/FEDORA_BASE.adoc[Fedora based] image. The real payoff is in the
 the size savings.
 
 ._Compare scratch and distro based image size_
