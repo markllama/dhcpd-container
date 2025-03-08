@@ -592,7 +592,10 @@ run-time parameters. The full report is significantly bigger and more detailed.
 
 As noted, this container image runs in link:https://github.com/markllama/dhcpd-container/README.adoc[exactly the same way] as the
 link:https://github.com/markllama/dhcpd-container/blob/main/FEDORA_BASE.adoc[Fedora
-based] image. So what are the differences and 
+based] image. So what are the differences and what do they mean?
+
+==== Size
+
 ._Compare scratch and distro based image size_
 [source,shell]
 ----
@@ -602,7 +605,26 @@ localhost/dhcpd-fedora                     latest      4581f80d82a6  2 days ago 
 ----
 
 The minimal image is 1/10th the size of the distro based image, saving
-over 150MB. 
+over 150MB.
+
+==== Simplicity
+
+There are only 22 files in the minimal container and only one is
+executable. The Fedora base image is a full distro image containing
+over 30,000 files.
+
+==== Security
+
+Every network service poses a security risk. If a process listens for
+input on a network, it is at risk of exploitation by outside
+actors. Any unneeded resources that the process could be forced to
+interact with pose a threat. A base image contains a shell and other
+common tools, useful for the container builder, but also for an
+intruder.
+
+The best way to minimize these risks is to just not have those tools
+present. A minimal container image provdes the smallest possible
+attack surface. If it's not there, they can't abuse it.
 
 == References
 
