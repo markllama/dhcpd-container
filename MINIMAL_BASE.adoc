@@ -25,7 +25,7 @@ small can a functional container image be?
 
 toc::[]
 
-== Dynamic Linking and Shared Objects
+== Modern Executable Files - Dynamic Linking and Shared Objects
 
 Modern operating systems depend heavily on *dynamic linking* and
 *shared objects*. A shared object is a file of compiled code that
