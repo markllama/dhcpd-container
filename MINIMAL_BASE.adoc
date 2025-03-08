@@ -27,13 +27,15 @@ toc::[]
 
 == Modern Executable Files - Dynamic Linking and Shared Objects
 
-Modern operating systems depend heavily on *dynamic linking* and
-*shared objects*. A shared object is a file of compiled code that
-provides a set of functions that are commonly used by many
-binaries. This reduces the size of those binaries because all those
-functions do not need to be duplicated in every statically linked
-binary. Every dynamically linked binary depends on a set of shared
-objects to resolve all of those dangling function bindings.
+Modern operating systems depend heavily on
+https://en.wikipedia.org/wiki/Dynamic_linker[*dynamic linking*] and
+https://en.wikipedia.org/wiki/Shared_library[*shared objects*].  A
+shared object is a file of compiled code that provides a set of
+functions that are commonly used by many binaries. This reduces the
+size of those binaries because all those functions do not need to be
+duplicated in every statically linked binary. Every dynamically linked
+binary depends on a set of shared objects to resolve all of those
+dangling function bindings.
 
 To build a working container image from scratch, it must at least
 contain the service binary and any shared libraries that it
