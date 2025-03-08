@@ -32,9 +32,9 @@ import yaml
 defaults = {
     'package_name': "dhcp-server",
     'daemon_file':  "dhcpd",
-    'package_dir':  "./minimize/packages",
-    'unpack_dir':   "./minimize/unpack",
-    'model_dir': "./minimize/model"
+    'package_dir':  "./workdir/packages",
+    'unpack_dir':   "./workdir/unpack",
+    'model_dir': "./workdir/model"
 }
 
 #
