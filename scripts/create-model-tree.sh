@@ -28,9 +28,12 @@ OPT_SPEC="b:dfm:p:u:w:v"
 #}
 
 function main() {
-
     # parse_args
-    
+
+    # -------------------------------------------
+    # Find retrieve and examine the binary
+    # -------------------------------------------
+
     # identify daemon package
     local pkg_fullname=$(find_provider_package $BINARY ${ARCH})
     [ -z "${VERBOSE}" ] || echo "package fullname: ${pkg_fullname}" >&2
@@ -51,8 +54,13 @@ function main() {
     local libraries=($(find_libraries ${pkg_name} ${binary_path} ${UNPACK_ROOT}))
     [ -z "${DEBUG}" ] || echo "library files: ${libraries[@]}" >&2
 
-    
-    # for each shared library
+    # -------------------------------------------------
+    # For each shared library
+    # - Find a package RPM the provides the file
+    # - Then get the package name from the RPM filename
+    # - Download and unpack the package
+    # -------------------------------------------------
+
     local library_file
     declare -a library_packages
     declare -A library_records
@@ -73,15 +81,15 @@ function main() {
 
 	## unpack library package
 	unpack_package ${lib_pkg_name} ${PACKAGE_DIR} ${UNPACK_ROOT}
-
-	## locate library file
-	
     done
 
-    # sort and remove duplicates
+    # Some packages provide more than one library: sort and remove duplicates
     IFS=$'\n' library_packages=($(sort -u <<<"${library_packages[@]}")) ; unset IFS
-        
+
+    # -------------------------------------------
     # create model root and create model symlinks
+    # -------------------------------------------
+    
     initialize_model_tree ${MODEL_ROOT}
 
     ## copy daemon binary
@@ -94,8 +102,7 @@ function main() {
      	[ -z "${DEBUG}" ] || echo "${library_file} : ${library_name}"
 
 	### copy library
-     	copy_file ${library_name} $(basename ${library_file}) ${UNPACK_ROOT} ${MODEL_ROOT}
-	
+     	copy_file ${library_name} $(basename ${library_file}) ${UNPACK_ROOT} ${MODEL_ROOT}	
     done
 }
 
@@ -194,7 +201,6 @@ function find_binaries() {
 # find shared libraries linked to the specified binary
 #
 function find_libraries() {
-
     local package=$1
     local exe_name=$2
     local unpack_root=$3
