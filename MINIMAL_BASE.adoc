@@ -591,9 +591,8 @@ run-time parameters. The full report is significantly bigger and more detailed.
 == Summary
 
 As noted, this container image runs in link:https://github.com/markllama/dhcpd-container/README.adoc[exactly the same way] as the
-link:https://github.com/markllama/dhcpd-container/blob/main/FEDORA_BASE.adoc[Fedora based] image. The real payoff is in the
-the size savings.
-
+link:https://github.com/markllama/dhcpd-container/blob/main/FEDORA_BASE.adoc[Fedora
+based] image. So what are the differences and 
 ._Compare scratch and distro based image size_
 [source,shell]
 ----
@@ -601,6 +600,9 @@ podman images | grep dhcp
 localhost/dhcpd                            latest      aacc40467b44  25 hours ago  16.3 MB
 localhost/dhcpd-fedora                     latest      4581f80d82a6  2 days ago    172 MB
 ----
+
+The minimal image is 1/10th the size of the distro based image, saving
+over 150MB. 
 
 == References
 
