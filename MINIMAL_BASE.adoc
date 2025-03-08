@@ -68,7 +68,7 @@ directory tree that mirrors the final content of the the image file
 tree (or the file layout of a real OS containing only those files).
 
 NOTE: This process is completely defined in
-link:scripts/create-model-tree.sh[`create-model-tree.sh`] +
+link:scripts/create-model-tree.sh[`create-model-tree.sh`]
 This document only highlights the specific steps.
 
 This example uses RPM packages from the Fedora distribution, but the
