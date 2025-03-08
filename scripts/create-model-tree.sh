@@ -1,12 +1,19 @@
 #!/bin/bash
+#
+# Create a model tree for a single binary.
+#
+# USAGE: bash create-model-tree.sh <binary>
+# Example: bash create-model-tree.sh dhcpd
+#
 
 BINARY=$1
 ARCH=$(uname -m)
 
+# Allow overrides from environment variables
 : WORKDIR_ROOT=${WORKDIR_ROOT:=./workdir}
 : PACKAGE_DIR=${PACKAGE_DIR:=${WORKDIR_ROOT}/rpms}
 : UNPACK_ROOT=${UNPACK_ROOT:=${WORKDIR_ROOT}/unpack}
-: MODEL_ROOT=${MODEL_ROOT:=${WORKDIR_ROOT}/model}
+: MODEL_ROOT=${MODEL_ROOT:=${WORKDIR_ROOT}/model/${BINARY}}
 
 OPT_SPEC="b:dfm:p:u:w:v"
 

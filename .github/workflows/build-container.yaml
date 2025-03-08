@@ -1,0 +1,7 @@
+---
+name: Build a container
+on: workflow_dispatch
+jobs:
+  Build-Fedora-Base:
+    runs-on: ubuntu-latest
+    
