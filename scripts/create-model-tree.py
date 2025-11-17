@@ -20,11 +20,12 @@ and shared libraries needed for each file.
 
 import argparse
 import functools
+import glob
 import os
 import re
 import shutil
-import subprocess
 import stat
+import subprocess
 import sys
 import urllib.request
 import yaml
@@ -34,7 +35,8 @@ defaults = {
     'daemon_file':  "dhcpd",
     'package_dir':  "./workdir/packages",
     'unpack_dir':   "./workdir/unpack",
-    'model_dir': "./workdir/model"
+    'model_dir': "./workdir/model",
+    'extra_files': []
 }
 
 #
@@ -60,6 +62,7 @@ def parse_args():
 
     parser.add_argument("--daemon-file", default=defaults['daemon_file'])
 
+    parser.add_argument("--extra-files", dest='extras', action='append', default=defaults['extra_files'])
     # Positional arguments
     parser.add_argument("package", default=defaults['package_name'])
 
@@ -202,6 +205,18 @@ class DynamicExecutable(object):
         verbose and print(f"placing exe file: {src} => {dst}")
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy(src, dst, follow_symlinks=follow_symlinks)
+        # copy any symlinks to the binary in the same directory
+
+        # For each symlink in the bin dir that points to the binary, copy that too
+        bin_inode = os.stat(src).st_ino
+        verbose and print(f"finding symlinks matching {src} (inode: {bin_inode}")
+        srcdir = os.path.dirname(src)
+        symlinks = [f for f in glob.glob(f"{srcdir}/*") if stat.S_ISLNK(os.lstat(f).st_mode)]
+        binlinks = [l for l in symlinks if os.stat(l).st_ino == bin_inode]
+        verbose and print(f"symlinks matching {src}: {binlinks}")
+        for link in binlinks:
+            verbose and print(f"creating symlink"}
+            shutil.copy(src, "dst_root, follow_symlinks=False)
 
         # for each shared library:
         # - retrieve
@@ -256,7 +271,15 @@ class DynamicExecutable(object):
         return manifest
 
 class DynamicLibrary(object):
-    
+    """
+    This class defines query and retrieval operations for a dynamic library
+    or shared object (.so) file.
+
+    This methods are meant to help identify the package that provides a given
+    shared object file and to retrieve that package from the yum repository.
+    Then the package can be unpacked to extract the library file.
+    """
+
     def __init__(self, name, path=None):
         self._name = name
         if path:
@@ -298,10 +321,17 @@ class DynamicLibrary(object):
 # Package Management
 # ------------------------------------------------------------------------------
 class Package():
-
-    def __init__(self, name=None, filename=None, url=None):
+    """
+    This class defines a set of operations to inspect, retrieve a package
+    from a yum repository and unpack it so that individual files can be
+    located and extracted.
+    """
+    
+    def __init__(self, name=None, filename=None, url=None, symlinks=False, extras=[]):
         self._name = name
         self._filename = filename
+        self._symlinks = symlinks
+        self._extras = extras
         self._executables = None
         self._releases = None
         self._dependencies = []
@@ -467,8 +497,11 @@ class Package():
 
 class Release():
     """
-    This represents a single release of a package from a yum repo
+    This class provides methods to decompose and query the components of
+    a package name/release string. These strings can be used to identify and select
+    an individual package instance by version, architecture and other features.
     """
+
     def __init__(self, fullname, description=None, filename=None, repo=None):
         self._fullname = fullname
         self._description = description
@@ -580,7 +613,7 @@ if __name__ == "__main__":
 
     # Identify and pull a copy of the service deaemon package
     opts.verbose and print(f"Processings package: {opts.package}")
-    pkg = Package(opts.package)
+    pkg = Package(opts.package, extras=opts.extras)
 
     opts.verbose and print(f"Retrieving package: {opts.package}")
     pkg.retrieve(opts.package_dir)
