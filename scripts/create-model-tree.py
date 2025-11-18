@@ -199,8 +199,8 @@ class DynamicExecutable(object):
         pkg.retrieve(package_dir)
         pkg.unpack(package_dir, unpack_dir)
 
-        src = f"{unpack_dir}/{pkg._name}/{self._path}"
-        dst = f"{dst_root}/{self._path}"
+        src = f"{unpack_dir}/{pkg._name}{self._path}"
+        dst = f"{dst_root}{self._path}"
         # copy the binary
         verbose and print(f"placing exe file: {src} => {dst}")
         os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -212,11 +212,14 @@ class DynamicExecutable(object):
         verbose and print(f"finding symlinks matching {src} (inode: {bin_inode}")
         srcdir = os.path.dirname(src)
         symlinks = [f for f in glob.glob(f"{srcdir}/*") if stat.S_ISLNK(os.lstat(f).st_mode)]
+        verbose and print(f"symlinks in {src}: {symlinks}")
         binlinks = [l for l in symlinks if os.stat(l).st_ino == bin_inode]
         verbose and print(f"symlinks matching {src}: {binlinks}")
         for link in binlinks:
-            verbose and print(f"creating symlink"}
-            shutil.copy(src, "dst_root, follow_symlinks=False)
+            alias = os.path.basename(link)
+            verbose and print(f"creating symlink: {alias} -> {os.path.basename(self._path)}")
+#            print(f"shutil.copy({link}, f\"{dst_root}{os.path.dirname(self._path)}/{alias}\", follow_symlinks=False)")
+            shutil.copy(link, f"{dst_root}{os.path.dirname(self._path)}/{alias}", follow_symlinks=False)
 
         # for each shared library:
         # - retrieve
